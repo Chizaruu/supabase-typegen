@@ -1,0 +1,25 @@
+@"
+# Source files
+src/
+bin/
+
+# Config files
+tsconfig.json
+.prettierrc*
+.eslintrc*
+
+# Development
+node_modules/
+*.log
+.DS_Store
+
+# Tests
+*.test.ts
+*.spec.ts
+__tests__/
+coverage/
+
+# Git
+.git/
+.gitignore
+"@ | Out-File -FilePath .npmignore -Encoding utf8
