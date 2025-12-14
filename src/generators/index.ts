@@ -9,3 +9,4 @@ export * from "./composite.js";
 export * from "./geometric.js";
 export * from "./constants.js";
 export * from "./jsonb.js";
+export * from "./view.js";

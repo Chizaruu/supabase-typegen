@@ -41,7 +41,7 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
-        "knip": "npm knip"
+        "knip": "knip"
     },
     "dependencies": {
         "glob": "^10.3.10"

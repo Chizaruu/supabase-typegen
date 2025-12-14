@@ -10,6 +10,7 @@ import type {
     EnumDefinition,
     FunctionDefinition,
     CompositeTypeDefinition,
+    ViewDefinition,
     TypeDefinition,
 } from "./types/index.js";
 import { log, setVerboseLogging } from "./utils/logger.js";
@@ -36,6 +37,7 @@ import {
     generateConstants,
     generateJsonbTypeDefinitions,
     generateMergeDeepStructure,
+    generateViewTypes,
 } from "./generators/index.js";
 
 export function initializeConfig(): GeneratorConfig {
@@ -126,6 +128,7 @@ function generateFinalTypes(
     enums: EnumDefinition[],
     functions: FunctionDefinition[],
     compositeTypes: CompositeTypeDefinition[],
+    views: ViewDefinition[],
     jsonbTypes: TypeDefinition[]
 ): void {
     log("\n🔨 Step 3: Generating type definitions...", "bright");
@@ -156,6 +159,7 @@ function generateFinalTypes(
         enums.sort((a, b) => a.name.localeCompare(b.name));
         functions.sort((a, b) => a.name.localeCompare(b.name));
         compositeTypes.sort((a, b) => a.name.localeCompare(b.name));
+        views.sort((a, b) => a.name.localeCompare(b.name));
         jsonbTypes.sort((a, b) => a.name.localeCompare(b.name));
 
         for (const table of tables) {
@@ -168,6 +172,10 @@ function generateFinalTypes(
 
         for (const compType of compositeTypes) {
             compType.attributes.sort((a, b) => a.name.localeCompare(b.name));
+        }
+
+        for (const view of views) {
+            view.columns.sort((a, b) => a.name.localeCompare(b.name));
         }
     }
 
@@ -246,6 +254,7 @@ function generateFinalTypes(
     const functionsBySchema: Record<string, FunctionDefinition[]> = {};
     const compositeTypesBySchema: Record<string, CompositeTypeDefinition[]> =
         {};
+    const viewsBySchema: Record<string, ViewDefinition[]> = {};
 
     for (const table of tables) {
         if (!tablesBySchema[table.schema]) {
@@ -275,11 +284,19 @@ function generateFinalTypes(
         compositeTypesBySchema[compType.schema].push(compType);
     }
 
+    for (const view of views) {
+        if (!viewsBySchema[view.schema]) {
+            viewsBySchema[view.schema] = [];
+        }
+        viewsBySchema[view.schema].push(view);
+    }
+
     const allSchemas = new Set<string>([
         ...Object.keys(tablesBySchema),
         ...Object.keys(enumsBySchema),
         ...Object.keys(functionsBySchema),
         ...Object.keys(compositeTypesBySchema),
+        ...Object.keys(viewsBySchema),
     ]);
 
     allSchemas.add("graphql_public");
@@ -292,6 +309,7 @@ function generateFinalTypes(
         const schemaEnums = enumsBySchema[schemaName] || [];
         const schemaFunctions = functionsBySchema[schemaName] || [];
         const schemaCompositeTypes = compositeTypesBySchema[schemaName] || [];
+        const schemaViews = viewsBySchema[schemaName] || [];
 
         const availableEnums = new Set(schemaEnums.map((e) => e.name));
 
@@ -328,6 +346,15 @@ function generateFinalTypes(
             convention,
             indentSize
         );
+        const viewTypes = generateViewTypes(
+            schemaViews,
+            convention,
+            indentSize,
+            config.includeComments,
+            availableEnums,
+            schemaName,
+            useGeometricTypes
+        );
 
         if (schemaName === "graphql_public") {
             schemaTypes.push(`${indent}graphql_public: {
@@ -361,7 +388,7 @@ ${indent.repeat(2)}Tables: {
 ${tableTypes || `${indent.repeat(3)}[_ in never]: never`}
 ${indent.repeat(2)}}
 ${indent.repeat(2)}Views: {
-${indent.repeat(3)}[_ in never]: never
+${viewTypes || `${indent.repeat(3)}[_ in never]: never`}
 ${indent.repeat(2)}}
 ${indent.repeat(2)}Functions: {
 ${functionTypes || `${indent.repeat(3)}[_ in never]: never`}
@@ -680,6 +707,9 @@ ${indent.repeat(2)}: never
     if (compositeTypes.length > 0) {
         log(`  ✓ ${compositeTypes.length} composite type(s)`, "green");
     }
+    if (views.length > 0) {
+        log(`  ✓ ${views.length} view(s)`, "green");
+    }
     if (allJsonbTypes.length > 0) {
         const mainTypes = jsonbTypes.filter((t) => t.table);
         log(
@@ -733,7 +763,7 @@ export function generateTypes(): void {
     }
 
     // Parse SQL files
-    const { tables, enums, functions, compositeTypes } = parseSqlFiles(
+    const { tables, enums, functions, compositeTypes, views } = parseSqlFiles(
         config.schemaPaths,
         config.supabase.schema,
         config.includeComments
@@ -764,6 +794,7 @@ export function generateTypes(): void {
         enums,
         functions,
         compositeTypes,
+        views,
         jsonbTypes
     );
 

@@ -23,6 +23,7 @@ import type {
     FunctionDefinition,
     CompositeTypeDefinition,
     IndexDefinition,
+    ViewDefinition,
 } from "../../src/types/index.js";
 
 // Mock modules
@@ -415,11 +416,12 @@ describe("SQL File Parser", () => {
 
             it("should parse multiple types in one file", () => {
                 const sqlContent = `
-                    CREATE TABLE users (id UUID);
-                    CREATE TYPE role AS ENUM ('admin');
-                    CREATE FUNCTION get_user() RETURNS users;
-                    CREATE TYPE address AS (street text);
-                `;
+        CREATE TABLE users (id UUID);
+        CREATE TYPE role AS ENUM ('admin');
+        CREATE FUNCTION get_user() RETURNS users;
+        CREATE TYPE address AS (street text);
+        CREATE VIEW active_users AS SELECT * FROM users WHERE active = true;
+    `;
 
                 vi.mocked(fs.readFileSync).mockReturnValue(sqlContent);
 
@@ -481,6 +483,22 @@ describe("SQL File Parser", () => {
                     }
                 );
 
+                let viewCallCount = 0;
+                vi.spyOn(sqlParsers, "parseViewDefinition").mockImplementation(
+                    () => {
+                        return viewCallCount++ === 0
+                            ? {
+                                  schema: "public",
+                                  name: "active_users",
+                                  definition:
+                                      "SELECT * FROM users WHERE active = true",
+                                  columns: [],
+                                  isMaterialized: false,
+                              }
+                            : null;
+                    }
+                );
+
                 vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
                     null
                 );
@@ -495,6 +513,7 @@ describe("SQL File Parser", () => {
                 vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
                     null
                 );
+                vi.spyOn(sqlParsers, "parseViewComment").mockReturnValue(null);
 
                 const result = parseSqlFiles(["/path/to/schema.sql"], "public");
 
@@ -502,6 +521,61 @@ describe("SQL File Parser", () => {
                 expect(result.enums).toHaveLength(1);
                 expect(result.functions).toHaveLength(1);
                 expect(result.compositeTypes).toHaveLength(1);
+                expect(result.views).toHaveLength(1);
+            });
+
+            it("should parse views", () => {
+                const mockView: ViewDefinition = {
+                    schema: "public",
+                    name: "user_summary",
+                    definition: "SELECT id, email FROM users",
+                    columns: [],
+                    isMaterialized: false,
+                };
+
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE VIEW user_summary AS SELECT id, email FROM users;"
+                );
+
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseViewDefinition").mockReturnValue(
+                    mockView
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseViewComment").mockReturnValue(null);
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(result.views).toHaveLength(1);
+                expect(result.views[0].name).toBe("user_summary");
+                expect(logger.log).toHaveBeenCalledWith(
+                    expect.stringContaining("Parsed 1 view(s)"),
+                    "green"
+                );
             });
         });
 
@@ -545,6 +619,9 @@ describe("SQL File Parser", () => {
                 vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
                     null
                 );
+                vi.spyOn(sqlParsers, "parseViewDefinition").mockReturnValue(
+                    null
+                ); // ADD THIS LINE
 
                 let indexCallCount = 0;
                 vi.spyOn(sqlParsers, "parseIndexDefinition").mockImplementation(
@@ -604,9 +681,9 @@ describe("SQL File Parser", () => {
                 };
 
                 const sqlContent = `
-                    CREATE TABLE users (id UUID);
-                    COMMENT ON TABLE users IS 'User accounts';
-                `;
+        CREATE TABLE users (id UUID);
+        COMMENT ON TABLE users IS 'User accounts';
+    `;
 
                 vi.mocked(fs.readFileSync).mockReturnValue(sqlContent);
 
@@ -626,6 +703,9 @@ describe("SQL File Parser", () => {
                 vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
                     null
                 );
+                vi.spyOn(sqlParsers, "parseViewDefinition").mockReturnValue(
+                    null
+                ); // ADD THIS LINE
                 vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
                     null
                 );
@@ -653,6 +733,7 @@ describe("SQL File Parser", () => {
                 vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
                     null
                 );
+                vi.spyOn(sqlParsers, "parseViewComment").mockReturnValue(null); // ADD THIS LINE TOO
 
                 const result = parseSqlFiles(
                     ["/path/to/schema.sql"],
@@ -692,9 +773,9 @@ describe("SQL File Parser", () => {
                 };
 
                 const sqlContent = `
-                    CREATE TABLE users (id UUID, email TEXT);
-                    COMMENT ON COLUMN users.email IS 'User email address';
-                `;
+        CREATE TABLE users (id UUID, email TEXT);
+        COMMENT ON COLUMN users.email IS 'User email address';
+    `;
 
                 vi.mocked(fs.readFileSync).mockReturnValue(sqlContent);
 
@@ -714,6 +795,9 @@ describe("SQL File Parser", () => {
                 vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
                     null
                 );
+                vi.spyOn(sqlParsers, "parseViewDefinition").mockReturnValue(
+                    null
+                ); // ADD THIS LINE
                 vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
                     null
                 );
@@ -739,6 +823,8 @@ describe("SQL File Parser", () => {
                             : null;
                     }
                 );
+
+                vi.spyOn(sqlParsers, "parseViewComment").mockReturnValue(null); // ADD THIS LINE TOO
 
                 const result = parseSqlFiles(
                     ["/path/to/schema.sql"],
@@ -823,6 +909,79 @@ describe("SQL File Parser", () => {
 
                 expect(tableCommentSpy).not.toHaveBeenCalled();
                 expect(columnCommentSpy).not.toHaveBeenCalled();
+            });
+
+            it("should attach view comments when includeComments is true", () => {
+                const mockView: ViewDefinition = {
+                    schema: "public",
+                    name: "user_summary",
+                    definition: "SELECT id, email FROM users",
+                    columns: [],
+                    isMaterialized: false,
+                };
+
+                const sqlContent = `
+        CREATE VIEW user_summary AS SELECT id, email FROM users;
+        COMMENT ON VIEW user_summary IS 'Summary of user data';
+    `;
+
+                vi.mocked(fs.readFileSync).mockReturnValue(sqlContent);
+
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+
+                let viewCallCount = 0;
+                vi.spyOn(sqlParsers, "parseViewDefinition").mockImplementation(
+                    () => {
+                        return viewCallCount++ === 0 ? mockView : null;
+                    }
+                );
+
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                let viewCommentCallCount = 0;
+                vi.spyOn(sqlParsers, "parseViewComment").mockImplementation(
+                    () => {
+                        return viewCommentCallCount++ === 0
+                            ? {
+                                  viewName: "user_summary",
+                                  comment: "Summary of user data",
+                                  schema: "public",
+                              }
+                            : null;
+                    }
+                );
+
+                const result = parseSqlFiles(
+                    ["/path/to/schema.sql"],
+                    "public",
+                    true
+                );
+
+                expect(result.views[0].comment).toBe("Summary of user data");
             });
         });
 

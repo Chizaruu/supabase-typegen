@@ -9,3 +9,4 @@ export * from "./sql/composite.js";
 export * from "./sql/index.js";
 export * from "./sql/comment.js";
 export * from "./sql/constraint.js";
+export * from "./sql/view.js";
