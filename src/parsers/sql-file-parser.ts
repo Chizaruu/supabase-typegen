@@ -35,7 +35,7 @@ export function parseSqlFiles(
     enums: EnumDefinition[];
     functions: FunctionDefinition[];
     compositeTypes: CompositeTypeDefinition[];
-    views: ViewDefinition[]; // ADDED
+    views: ViewDefinition[];
 } {
     log("\n📊 Step 1: Parsing SQL schema files...", "bright");
 
@@ -43,7 +43,7 @@ export function parseSqlFiles(
     const enums: EnumDefinition[] = [];
     const functions: FunctionDefinition[] = [];
     const compositeTypes: CompositeTypeDefinition[] = [];
-    const views: ViewDefinition[] = []; // ADDED
+    const views: ViewDefinition[] = [];
     const indexesByTable: Map<string, IndexDefinition[]> = new Map();
     const alterTableForeignKeys: Array<{
         tableName: string;
@@ -74,6 +74,7 @@ export function parseSqlFiles(
             // Track tables added in this file for comment attachment
             const tablesAddedInThisFile: TableDefinition[] = [];
             const viewsAddedInThisFile: ViewDefinition[] = [];
+            const viewStatements: string[] = [];
 
             for (const statement of statements) {
                 const trimmed = statement.trim();
@@ -104,10 +105,12 @@ export function parseSqlFiles(
                     continue;
                 }
 
-                const viewDef = parseViewDefinition(trimmed, schema);
-                if (viewDef) {
-                    views.push(viewDef);
-                    viewsAddedInThisFile.push(viewDef);
+                if (
+                    trimmed
+                        .toLowerCase()
+                        .match(/^create\s+(materialized\s+)?view/)
+                ) {
+                    viewStatements.push(trimmed);
                     continue;
                 }
 
@@ -171,6 +174,18 @@ export function parseSqlFiles(
             }
 
             // Attach comments to tables added in THIS file only
+            for (const viewStatement of viewStatements) {
+                const viewDef = parseViewDefinition(
+                    viewStatement,
+                    schema,
+                    tables
+                );
+                if (viewDef) {
+                    views.push(viewDef);
+                    viewsAddedInThisFile.push(viewDef);
+                }
+            }
+
             if (includeComments && tableComments && columnComments) {
                 for (const table of tablesAddedInThisFile) {
                     const tableComment = tableComments.get(table.name);
