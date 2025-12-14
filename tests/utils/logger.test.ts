@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { SpyInstance } from "vitest";
-import { colors, setVerboseLogging, log } from "../../src/utils/logger.ts";
+import { colors, setVerboseLogging, log } from "../../src/utils/logger.js";
 
 // Spy on global console.log
 let consoleLogSpy: SpyInstance;

@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { generateTableType } from "../../src/generators/table.ts";
-import type { TableDefinition } from "../../src/types/index.ts";
+import { generateTableType } from "../../src/generators/table.js";
+import type { TableDefinition } from "../../src/types/index.js";
 
 describe("generateTableType", () => {
     const basicTable: TableDefinition = {

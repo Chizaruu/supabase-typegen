@@ -9,8 +9,8 @@ import type {
     FunctionDefinition,
     CompositeTypeDefinition,
     IndexDefinition,
-} from "../types/index.ts";
-import { log } from "../utils/logger.ts";
+} from "../types/index.js";
+import { log } from "../utils/logger.js";
 import {
     parseTableDefinition,
     parseEnumDefinition,
@@ -21,7 +21,7 @@ import {
     parseColumnComment,
     parseAlterTableForeignKey,
     parseAlterTableUnique,
-} from "./sql-parsers.ts";
+} from "./sql-parsers.js";
 
 export function parseSqlFiles(
     filePaths: string[],

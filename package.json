@@ -22,10 +22,10 @@
     },
     "homepage": "https://github.com/chizaruu/supabase-type-generator#readme",
     "type": "module",
-    "main": "./dist/index.ts",
-    "types": "./dist/index.d.ts",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.js",
     "bin": {
-        "generate-supabase-types": "./dist/bin/generate-types.ts"
+        "generate-supabase-types": "./dist/bin/generate-types.js"
     },
     "files": [
         "dist",
@@ -37,6 +37,7 @@
         "dev": "tsc --watch",
         "prepublishOnly": "npm run build",
         "type-check": "tsc --noEmit",
+        "type-check:tests": "tsc -p tsconfig.test.json",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",

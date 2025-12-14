@@ -2,7 +2,7 @@
  * ALTER TABLE constraint parsing from SQL
  */
 
-import type { RelationshipDefinition } from "../../types/index.ts";
+import type { RelationshipDefinition } from "../../types/index.js";
 
 export function parseAlterTableForeignKey(
     sqlContent: string,

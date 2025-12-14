@@ -2,7 +2,7 @@
  * Enum definition parsing from SQL
  */
 
-import type { EnumDefinition } from "../../types/index.ts";
+import type { EnumDefinition } from "../../types/index.js";
 
 export function parseEnumDefinition(
     sqlContent: string,

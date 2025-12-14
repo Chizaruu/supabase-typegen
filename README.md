@@ -4,14 +4,14 @@ Complete Supabase Type Generator - Schema-File First with Index Support
 
 ## Features
 
--   🔍 **SQL-First Parsing**: Reads directly from your SQL migration files
--   📊 **Complete Schema Support**: Tables, enums, functions, composite types, and indexes
--   🎯 **Precise Types**: Preserves exact database naming and structure
--   💬 **Comment Support**: Converts SQL comments to TypeScript JSDoc
--   🔗 **Relationship Detection**: Automatically detects foreign keys and one-to-one relationships
--   📑 **Index Metadata**: Optional index information in generated types
--   🎨 **Flexible Naming**: Multiple naming conventions (preserve, PascalCase, camelCase, etc.)
--   🔧 **Prettier Integration**: Auto-detects Prettier configuration for consistent formatting
+- 🔍 **SQL-First Parsing**: Reads directly from your SQL migration files
+- 📊 **Complete Schema Support**: Tables, enums, functions, composite types, and indexes
+- 🎯 **Precise Types**: Preserves exact database naming and structure
+- 💬 **Comment Support**: Converts SQL comments to TypeScript JSDoc
+- 🔗 **Relationship Detection**: Automatically detects foreign keys and one-to-one relationships
+- 📑 **Index Metadata**: Optional index information in generated types
+- 🎨 **Flexible Naming**: Multiple naming conventions (preserve, PascalCase, camelCase, etc.)
+- 🔧 **Prettier Integration**: Auto-detects Prettier configuration for consistent formatting
 
 ## Installation
 
@@ -57,33 +57,33 @@ npx generate-supabase-types --extract-nested
 
 **Source Options:**
 
--   `--local [workdir]` - Read from local SQL files (default)
--   `--workdir <path>` - Specify Supabase working directory
--   `--db, --use-database` - Query database for schema
--   `--connection-string <url>` - Database connection string
+- `--local [workdir]` - Read from local SQL files (default)
+- `--workdir <path>` - Specify Supabase working directory
+- `--db, --use-database` - Query database for schema
+- `--connection-string <url>` - Database connection string
 
 **Output Options:**
 
--   `--output, -o <dir>` - Output directory for generated types
--   `--schema <name>` - Database schema name (default: public)
+- `--output, -o <dir>` - Output directory for generated types
+- `--schema <name>` - Database schema name (default: public)
 
 **Formatting Options:**
 
--   `--indent, --indent-size <n>` - Indentation size (1-8 spaces)
--   `--use-prettier` - Use Prettier config for indentation
--   `--naming <convention>` - Naming convention (preserve, PascalCase, camelCase, snake_case, SCREAMING_SNAKE_CASE)
--   `--alphabetical, --sort` - Sort types alphabetically
+- `--indent, --indent-size <n>` - Indentation size (1-8 spaces)
+- `--use-prettier` - Use Prettier config for indentation
+- `--naming <convention>` - Naming convention (preserve, PascalCase, camelCase, snake_case, SCREAMING_SNAKE_CASE)
+- `--alphabetical, --sort` - Sort types alphabetically
 
 **Type Generation Options:**
 
--   `--extract-nested, --deep-nested` - Extract nested types from JSONB
--   `--deduplicate, --dedupe` - Deduplicate type definitions
--   `--include-indexes, --indexes` - Include index metadata in generated types
--   `--no-comments, --skip-comments` - Disable parsing SQL comments as JSDoc
+- `--extract-nested, --deep-nested` - Extract nested types from JSONB
+- `--deduplicate, --dedupe` - Deduplicate type definitions
+- `--include-indexes, --indexes` - Include index metadata in generated types
+- `--no-comments, --skip-comments` - Disable parsing SQL comments as JSDoc
 
 **Output Options:**
 
--   `--no-logs, --silent, --quiet` - Suppress log output
+- `--no-logs, --silent, --quiet` - Suppress log output
 
 ## Generated Types
 

@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { parseEnumDefinition } from "../../../src/parsers/sql/enum.ts";
+import { parseEnumDefinition } from "../../../src/parsers/sql/enum.js";
 
 describe("parseEnumDefinition", () => {
     it("should parse basic enum", () => {

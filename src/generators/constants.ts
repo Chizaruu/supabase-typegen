@@ -2,8 +2,8 @@
  * Runtime constants generation for enums
  */
 
-import type { EnumDefinition, NamingConvention } from "../types/index.ts";
-import { convertCase } from "../utils/naming.ts";
+import type { EnumDefinition, NamingConvention } from "../types/index.js";
+import { convertCase } from "../utils/naming.js";
 
 export function generateConstants(
     enumsBySchema: Record<string, EnumDefinition[]>,

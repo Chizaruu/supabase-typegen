@@ -2,8 +2,8 @@
  * JSONB type generation
  */
 
-import type { TypeDefinition, NamingConvention } from "../types/index.ts";
-import { convertCase } from "../utils/naming.ts";
+import type { TypeDefinition, NamingConvention } from "../types/index.js";
+import { convertCase } from "../utils/naming.js";
 
 export function generateJsonbTypeDefinitions(
     allJsonbTypes: TypeDefinition[],

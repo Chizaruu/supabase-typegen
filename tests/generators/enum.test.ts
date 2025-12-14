@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { generateEnumTypes } from "../../src/generators/enum.ts";
-import type { EnumDefinition } from "../../src/types/index.ts";
+import { generateEnumTypes } from "../../src/generators/enum.js";
+import type { EnumDefinition } from "../../src/types/index.js";
 
 describe("generateEnumTypes", () => {
     it("should generate basic enum type", () => {

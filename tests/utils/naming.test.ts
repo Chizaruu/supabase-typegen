@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { convertCase } from "../../src/utils/naming.ts";
+import { convertCase } from "../../src/utils/naming.js";
 
 describe("convertCase", () => {
     describe("preserve", () => {

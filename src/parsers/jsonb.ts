@@ -7,8 +7,8 @@ import type {
     JsonbColumn,
     TypeDefinition,
     NamingConvention,
-} from "../types/index.ts";
-import { convertCase } from "../utils/naming.ts";
+} from "../types/index.js";
+import { convertCase } from "../utils/naming.js";
 
 export function parseJsonbColumns(
     sqlContent: string,

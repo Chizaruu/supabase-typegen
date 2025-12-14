@@ -2,7 +2,7 @@
  * Composite type definition parsing from SQL
  */
 
-import type { CompositeTypeDefinition } from "../../types/index.ts";
+import type { CompositeTypeDefinition } from "../../types/index.js";
 
 export function parseCompositeType(
     sqlContent: string,

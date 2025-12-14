@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { generateCompositeTypes } from "../../src/generators/composite.ts";
-import type { CompositeTypeDefinition } from "../../src/types/index.ts";
+import { generateCompositeTypes } from "../../src/generators/composite.js";
+import type { CompositeTypeDefinition } from "../../src/types/index.js";
 
 describe("generateCompositeTypes", () => {
     it("should generate basic composite type", () => {

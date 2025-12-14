@@ -6,8 +6,8 @@ import { describe, it, expect } from "vitest";
 import {
     generateJsonbTypeDefinitions,
     generateMergeDeepStructure,
-} from "../../src/generators/jsonb.ts";
-import type { TypeDefinition } from "../../src/types/index.ts";
+} from "../../src/generators/jsonb.js";
+import type { TypeDefinition } from "../../src/types/index.js";
 
 describe("generateJsonbTypeDefinitions", () => {
     it("should generate basic JSONB type", () => {

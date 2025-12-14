@@ -11,22 +11,22 @@ import type {
     FunctionDefinition,
     CompositeTypeDefinition,
     TypeDefinition,
-} from "./types/index.ts";
-import { log, setVerboseLogging } from "./utils/logger.ts";
-import { parseCommandLineArgs } from "./config/cli.ts";
-import { readSupabaseConfig, resolveSchemaFiles } from "./config/toml.ts";
-import { parseSqlFiles } from "./parsers/sql-file-parser.ts";
+} from "./types/index.js";
+import { log, setVerboseLogging } from "./utils/logger.js";
+import { parseCommandLineArgs } from "./config/cli.js";
+import { readSupabaseConfig, resolveSchemaFiles } from "./config/toml.js";
+import { parseSqlFiles } from "./parsers/sql-file-parser.js";
 import {
     detectPrettierConfig,
     getPrettierIndentSize,
-} from "./utils/prettier.ts";
-import { GENERATOR_CONFIG } from "./config/constants.ts";
-import { detectGeometricTypes } from "./utils/type-mapping.ts";
+} from "./utils/prettier.js";
+import { GENERATOR_CONFIG } from "./config/constants.js";
+import { detectGeometricTypes } from "./utils/type-mapping.js";
 import {
     scanSchemas,
     normalizeTypeDefinition,
     flattenTypes,
-} from "./parsers/jsonb.ts";
+} from "./parsers/jsonb.js";
 import {
     generateTableType,
     generateEnumTypes,
@@ -36,7 +36,7 @@ import {
     generateConstants,
     generateJsonbTypeDefinitions,
     generateMergeDeepStructure,
-} from "./generators/index.ts";
+} from "./generators/index.js";
 
 export function initializeConfig(): GeneratorConfig {
     const cliArgs = parseCommandLineArgs();
@@ -106,8 +106,8 @@ export function initializeConfig(): GeneratorConfig {
         schemaPaths: resolvedPaths,
         output: {
             dir: cliArgs.outputDir,
-            tempFile: `database${outputSuffix}-temp.ts`,
-            finalFile: `database${outputSuffix}.ts`,
+            tempFile: `database${outputSuffix}-temp.js`,
+            finalFile: `database${outputSuffix}.js`,
         },
         extractNestedTypes: cliArgs.extractNestedTypes,
         deduplicateTypes: cliArgs.deduplicateTypes,
@@ -771,7 +771,7 @@ export function generateTypes(): void {
     log(`\n📝 Import your types with:`, "cyan", true);
     log(
         `   import type { Database, Tables, Enums } from './${config.output.finalFile.replace(
-            ".ts",
+            ".js",
             ""
         )}'`,
         "cyan",

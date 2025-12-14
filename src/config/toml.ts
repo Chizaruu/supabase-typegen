@@ -5,8 +5,8 @@
 import { readFileSync, existsSync, statSync } from "fs";
 import { join, resolve } from "path";
 import { globSync } from "glob";
-import type { SupabaseConfig } from "../types/index.ts";
-import { log } from "../utils/logger.ts";
+import type { SupabaseConfig } from "../types/index.js";
+import { log } from "../utils/logger.js";
 
 export function parseToml(content: string): SupabaseConfig {
     const config: SupabaseConfig = {};

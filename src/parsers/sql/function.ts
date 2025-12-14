@@ -2,7 +2,7 @@
  * Function definition parsing from SQL
  */
 
-import type { FunctionDefinition } from "../../types/index.ts";
+import type { FunctionDefinition } from "../../types/index.js";
 
 export function parseFunctionDefinition(
     sqlContent: string,

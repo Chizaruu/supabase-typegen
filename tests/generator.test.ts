@@ -11,30 +11,30 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { initializeConfig, generateTypes } from "../src/generator.ts";
+import { initializeConfig, generateTypes } from "../src/generator.js";
 import * as fs from "fs";
 import * as path from "path";
-import * as logger from "../src/utils/logger.ts";
-import * as cli from "../src/config/cli.ts";
-import * as toml from "../src/config/toml.ts";
-import * as sqlFileParser from "../src/parsers/sql-file-parser.ts";
-import * as jsonbParser from "../src/parsers/jsonb.ts";
-import * as tableGenerator from "../src/generators/table.ts";
-import * as enumGenerator from "../src/generators/enum.ts";
-import * as functionGenerator from "../src/generators/function.ts";
-import * as compositeGenerator from "../src/generators/composite.ts";
-import * as geometricGenerator from "../src/generators/geometric.ts";
-import * as constantsGenerator from "../src/generators/constants.ts";
-import * as jsonbGenerator from "../src/generators/jsonb.ts";
-import * as prettierUtils from "../src/utils/prettier.ts";
-import * as typeMapping from "../src/utils/type-mapping.ts";
+import * as logger from "../src/utils/logger.js";
+import * as cli from "../src/config/cli.js";
+import * as toml from "../src/config/toml.js";
+import * as sqlFileParser from "../src/parsers/sql-file-parser.js";
+import * as jsonbParser from "../src/parsers/jsonb.js";
+import * as tableGenerator from "../src/generators/table.js";
+import * as enumGenerator from "../src/generators/enum.js";
+import * as functionGenerator from "../src/generators/function.js";
+import * as compositeGenerator from "../src/generators/composite.js";
+import * as geometricGenerator from "../src/generators/geometric.js";
+import * as constantsGenerator from "../src/generators/constants.js";
+import * as jsonbGenerator from "../src/generators/jsonb.js";
+import * as prettierUtils from "../src/utils/prettier.js";
+import * as typeMapping from "../src/utils/type-mapping.js";
 import type {
     TableDefinition,
     EnumDefinition,
     FunctionDefinition,
     CompositeTypeDefinition,
     TypeDefinition,
-} from "../src/types/index.ts";
+} from "../src/types/index.js";
 
 // Mock fs module at the top level
 vi.mock("fs", () => ({
@@ -78,7 +78,7 @@ describe("Integration: Generator", () => {
 
     describe("initializeConfig", () => {
         it("should initialize with default configuration", () => {
-            process.argv = ["node", "script.ts"];
+            process.argv = ["node", "script.js"];
 
             vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
                 ["migrations/*.sql"],
@@ -110,7 +110,7 @@ describe("Integration: Generator", () => {
         it("should prefer CLI indent over Prettier config", () => {
             process.argv = [
                 "node",
-                "script.ts",
+                "script.js",
                 "--indent",
                 "8",
                 "--use-prettier",
@@ -132,7 +132,7 @@ describe("Integration: Generator", () => {
         });
 
         it("should use default indent when Prettier config is null", () => {
-            process.argv = ["node", "script.ts", "--use-prettier"];
+            process.argv = ["node", "script.js", "--use-prettier"];
 
             vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
                 [],
@@ -152,7 +152,7 @@ describe("Integration: Generator", () => {
         });
 
         it("should generate output suffix from workdir", () => {
-            process.argv = ["node", "script.ts", "--workdir", "./my-project"];
+            process.argv = ["node", "script.js", "--workdir", "./my-project"];
 
             vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
                 [],
@@ -165,14 +165,14 @@ describe("Integration: Generator", () => {
 
             const config = initializeConfig();
 
-            expect(config.output.tempFile).toBe("databaseMy-project-temp.ts");
-            expect(config.output.finalFile).toBe("databaseMy-project.ts");
+            expect(config.output.tempFile).toBe("databaseMy-project-temp.js");
+            expect(config.output.finalFile).toBe("databaseMy-project.js");
         });
 
         it("should handle custom schema and naming convention", () => {
             process.argv = [
                 "node",
-                "script.ts",
+                "script.js",
                 "--schema",
                 "auth",
                 "--naming",
@@ -204,7 +204,7 @@ describe("Integration: Generator", () => {
             ];
 
             for (const convention of conventions) {
-                process.argv = ["node", "script.ts", "--naming", convention];
+                process.argv = ["node", "script.js", "--naming", convention];
 
                 vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
                     [],
@@ -223,7 +223,7 @@ describe("Integration: Generator", () => {
         it("should handle all boolean flags", () => {
             process.argv = [
                 "node",
-                "script.ts",
+                "script.js",
                 "--alphabetical",
                 "--extract-nested",
                 "--include-indexes",
@@ -250,7 +250,7 @@ describe("Integration: Generator", () => {
         });
 
         it("should handle no-deduplicate flag", () => {
-            process.argv = ["node", "script.ts", "--no-deduplicate"];
+            process.argv = ["node", "script.js", "--no-deduplicate"];
 
             vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
                 [],
@@ -269,7 +269,7 @@ describe("Integration: Generator", () => {
         it("should handle database connection string", () => {
             process.argv = [
                 "node",
-                "script.ts",
+                "script.js",
                 "--connection-string",
                 "postgresql://localhost:5432/db",
             ];
@@ -293,7 +293,7 @@ describe("Integration: Generator", () => {
 
         it("should handle all indent sizes 1-8", () => {
             for (let i = 1; i <= 8; i++) {
-                process.argv = ["node", "script.ts", "--indent", i.toString()];
+                process.argv = ["node", "script.js", "--indent", i.toString()];
 
                 vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
                     [],
@@ -310,7 +310,7 @@ describe("Integration: Generator", () => {
         });
 
         it("should handle empty configWorkdir resulting in empty configPath", () => {
-            process.argv = ["node", "script.ts"];
+            process.argv = ["node", "script.js"];
 
             // Mock readSupabaseConfig to return empty configWorkdir
             vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
@@ -471,7 +471,7 @@ describe("Integration: Generator", () => {
         ];
 
         beforeEach(() => {
-            process.argv = ["node", "script.ts"];
+            process.argv = ["node", "script.js"];
 
             // Mock config reading
             vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
@@ -586,7 +586,7 @@ describe("Integration: Generator", () => {
         });
 
         it("should handle different naming conventions", () => {
-            process.argv = ["node", "script.ts", "--naming", "camelCase"];
+            process.argv = ["node", "script.js", "--naming", "camelCase"];
 
             generateTypes();
 
@@ -603,7 +603,7 @@ describe("Integration: Generator", () => {
         });
 
         it("should include indexes when flag is set", () => {
-            process.argv = ["node", "script.ts", "--include-indexes"];
+            process.argv = ["node", "script.js", "--include-indexes"];
 
             generateTypes();
 
@@ -620,7 +620,7 @@ describe("Integration: Generator", () => {
         });
 
         it("should exclude comments when flag is set", () => {
-            process.argv = ["node", "script.ts", "--no-comments"];
+            process.argv = ["node", "script.js", "--no-comments"];
 
             generateTypes();
 
@@ -632,7 +632,7 @@ describe("Integration: Generator", () => {
         });
 
         it("should handle JSONB type extraction", () => {
-            process.argv = ["node", "script.ts", "--extract-nested"];
+            process.argv = ["node", "script.js", "--extract-nested"];
 
             generateTypes();
 
@@ -643,7 +643,7 @@ describe("Integration: Generator", () => {
         });
 
         it("should skip flattening when extract-nested is false", () => {
-            process.argv = ["node", "script.ts"];
+            process.argv = ["node", "script.js"];
 
             const flattenSpy = vi.spyOn(jsonbParser, "flattenTypes");
 
@@ -681,7 +681,7 @@ describe("Integration: Generator", () => {
         });
 
         it("should skip deduplication when disabled", () => {
-            process.argv = ["node", "script.ts", "--no-deduplicate"];
+            process.argv = ["node", "script.js", "--no-deduplicate"];
 
             const duplicateTypes: TypeDefinition[] = [
                 {
@@ -726,7 +726,7 @@ describe("Integration: Generator", () => {
         it("should handle workdir with nested path", () => {
             process.argv = [
                 "node",
-                "script.ts",
+                "script.js",
                 "--workdir",
                 "./projects/myapp/supabase",
             ];
@@ -825,7 +825,7 @@ describe("Integration: Generator", () => {
         });
 
         it("should sort relationships alphabetically when flag is set", () => {
-            process.argv = ["node", "script.ts", "--alphabetical"];
+            process.argv = ["node", "script.js", "--alphabetical"];
 
             const tableWithRelationships: TableDefinition = {
                 schema: "public",
@@ -958,7 +958,7 @@ describe("Integration: Generator", () => {
         });
 
         it("should log indent source note when Prettier config is used", () => {
-            process.argv = ["node", "script.ts", "--use-prettier"];
+            process.argv = ["node", "script.js", "--use-prettier"];
 
             vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
                 [],
@@ -1037,7 +1037,7 @@ describe("Integration: Generator", () => {
         });
 
         it("should log indent source note when custom indent is used", () => {
-            process.argv = ["node", "script.ts", "--indent", "4"];
+            process.argv = ["node", "script.js", "--indent", "4"];
 
             vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
                 [],
@@ -1116,7 +1116,7 @@ describe("Integration: Generator", () => {
         it("should generate file header with database source when using connection string", () => {
             process.argv = [
                 "node",
-                "script.ts",
+                "script.js",
                 "--connection-string",
                 "postgresql://localhost:5432/db",
             ];
@@ -1192,7 +1192,7 @@ describe("Integration: Generator", () => {
         it("should sort JSONB types alphabetically when extract-nested and alphabetical are set", () => {
             process.argv = [
                 "node",
-                "script.ts",
+                "script.js",
                 "--extract-nested",
                 "--alphabetical",
             ];
@@ -1463,7 +1463,7 @@ describe("Integration: Generator", () => {
 
     describe("Edge Cases", () => {
         beforeEach(() => {
-            process.argv = ["node", "script.ts"];
+            process.argv = ["node", "script.js"];
 
             vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
                 [],
@@ -1594,7 +1594,7 @@ describe("Integration: Generator", () => {
         });
 
         it("should log index count when included", () => {
-            process.argv = ["node", "script.ts", "--include-indexes"];
+            process.argv = ["node", "script.js", "--include-indexes"];
 
             const table: TableDefinition = {
                 schema: "public",
@@ -1842,7 +1842,7 @@ describe("Integration: Generator", () => {
 
     describe("Type Deduplication Logic", () => {
         beforeEach(() => {
-            process.argv = ["node", "script.ts"];
+            process.argv = ["node", "script.js"];
 
             vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
                 [],

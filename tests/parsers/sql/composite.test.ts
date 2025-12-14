@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { parseCompositeType } from "../../../src/parsers/sql/composite.ts";
+import { parseCompositeType } from "../../../src/parsers/sql/composite.js";
 
 describe("parseCompositeType", () => {
     it("should parse basic composite type", () => {

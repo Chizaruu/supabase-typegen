@@ -12,10 +12,10 @@ import {
     parseToml,
     readSupabaseConfig,
     resolveSchemaFiles,
-} from "../../src/config/toml.ts";
+} from "../../src/config/toml.js";
 import * as fs from "fs";
 import * as path from "path";
-import * as logger from "../../src/utils/logger.ts";
+import * as logger from "../../src/utils/logger.js";
 import { globSync } from "glob";
 
 // Mock modules

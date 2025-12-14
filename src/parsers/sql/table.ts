@@ -6,7 +6,7 @@ import type {
     TableDefinition,
     ColumnDefinition,
     RelationshipDefinition,
-} from "../../types/index.ts";
+} from "../../types/index.js";
 
 /**
  * Helper function to extract identifier value from regex match groups

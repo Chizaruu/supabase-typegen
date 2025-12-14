@@ -2,10 +2,10 @@
  * SQL parser exports
  */
 
-export * from "./sql/table.ts";
-export * from "./sql/enum.ts";
-export * from "./sql/function.ts";
-export * from "./sql/composite.ts";
-export * from "./sql/index.ts";
-export * from "./sql/comment.ts";
-export * from "./sql/constraint.ts";
+export * from "./sql/table.js";
+export * from "./sql/enum.js";
+export * from "./sql/function.js";
+export * from "./sql/composite.js";
+export * from "./sql/index.js";
+export * from "./sql/comment.js";
+export * from "./sql/constraint.js";

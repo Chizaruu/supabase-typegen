@@ -2,7 +2,7 @@
  * Console output utilities
  */
 
-import type { ColorName } from "../types/index.ts";
+import type { ColorName } from "../types/index.js";
 
 export const colors = {
     reset: "\x1b[0m",

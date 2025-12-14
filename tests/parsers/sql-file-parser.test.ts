@@ -13,17 +13,17 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { parseSqlFiles } from "../../src/parsers/sql-file-parser.ts";
+import { parseSqlFiles } from "../../src/parsers/sql-file-parser.js";
 import * as fs from "fs";
-import * as logger from "../../src/utils/logger.ts";
-import * as sqlParsers from "../../src/parsers/sql-parsers.ts";
+import * as logger from "../../src/utils/logger.js";
+import * as sqlParsers from "../../src/parsers/sql-parsers.js";
 import type {
     TableDefinition,
     EnumDefinition,
     FunctionDefinition,
     CompositeTypeDefinition,
     IndexDefinition,
-} from "../../src/types/index.ts";
+} from "../../src/types/index.js";
 
 // Mock modules
 vi.mock("fs");

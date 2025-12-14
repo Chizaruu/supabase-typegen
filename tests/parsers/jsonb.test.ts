@@ -10,7 +10,7 @@ import {
     inferTypeFromValue,
     normalizeTypeDefinition,
     flattenTypes,
-} from "../../src/parsers/jsonb.ts";
+} from "../../src/parsers/jsonb.js";
 
 // Use vi.hoisted to create the mock function before hoisting
 const { mockReadFileSync } = vi.hoisted(() => ({
@@ -461,7 +461,7 @@ describe("flattenTypes", () => {
 describe("extractNestedTypes", () => {
     it("should handle primitive types", async () => {
         const { extractNestedTypes } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         expect(extractNestedTypes("hello", "test", 0, "preserve")).toEqual({
@@ -482,7 +482,7 @@ describe("extractNestedTypes", () => {
 
     it("should handle null and undefined", async () => {
         const { extractNestedTypes } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         expect(extractNestedTypes(null, "test", 0, "preserve")).toEqual({
@@ -498,7 +498,7 @@ describe("extractNestedTypes", () => {
 
     it("should handle arrays", async () => {
         const { extractNestedTypes } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         const emptyResult = extractNestedTypes([], "test", 0, "preserve");
@@ -527,7 +527,7 @@ describe("extractNestedTypes", () => {
 
     it("should extract nested object types", async () => {
         const { extractNestedTypes } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         const data = {
@@ -548,7 +548,7 @@ describe("extractNestedTypes", () => {
 
     it("should apply naming conventions", async () => {
         const { extractNestedTypes } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         const data = {
@@ -564,7 +564,7 @@ describe("extractNestedTypes", () => {
 
     it("should handle deeply nested structures", async () => {
         const { extractNestedTypes } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         const data = {
@@ -587,7 +587,7 @@ describe("extractNestedTypes", () => {
 
     it("should handle mixed primitive and object fields", async () => {
         const { extractNestedTypes } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         const data = {
@@ -609,7 +609,7 @@ describe("extractNestedTypes", () => {
 
     it("should handle function type as unknown", async () => {
         const { extractNestedTypes } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         const func = () => {};
@@ -621,7 +621,7 @@ describe("extractNestedTypes", () => {
 
     it("should handle symbol type as unknown", async () => {
         const { extractNestedTypes } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         const sym = Symbol("test");
@@ -633,7 +633,7 @@ describe("extractNestedTypes", () => {
 
     it("should handle BigInt as unknown", async () => {
         const { extractNestedTypes } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         const bigint = BigInt(999);
@@ -647,7 +647,7 @@ describe("extractNestedTypes", () => {
 describe("generateTypeDefinition", () => {
     it("should generate Record<string, unknown> for column without default", async () => {
         const { generateTypeDefinition } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         const column = {
@@ -666,7 +666,7 @@ describe("generateTypeDefinition", () => {
 
     it("should generate type from jsonb_build_object", async () => {
         const { generateTypeDefinition } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         const column = {
@@ -686,7 +686,7 @@ describe("generateTypeDefinition", () => {
 
     it("should generate type from JSON string default", async () => {
         const { generateTypeDefinition } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         const column = {
@@ -704,7 +704,7 @@ describe("generateTypeDefinition", () => {
 
     it("should extract nested types when enabled", async () => {
         const { generateTypeDefinition } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         const column = {
@@ -723,7 +723,7 @@ describe("generateTypeDefinition", () => {
 
     it("should handle invalid JSON gracefully", async () => {
         const { generateTypeDefinition } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         const column = {
@@ -740,7 +740,7 @@ describe("generateTypeDefinition", () => {
 
     it("should preserve comments", async () => {
         const { generateTypeDefinition } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         const column = {
@@ -758,7 +758,7 @@ describe("generateTypeDefinition", () => {
 
     it("should apply naming conventions", async () => {
         const { generateTypeDefinition } = await import(
-            "../../src/parsers/jsonb.ts"
+            "../../src/parsers/jsonb.js"
         );
 
         const column = {
@@ -790,7 +790,7 @@ describe("scanSchemas", () => {
             );
         `);
 
-        const { scanSchemas } = await import("../../src/parsers/jsonb.ts");
+        const { scanSchemas } = await import("../../src/parsers/jsonb.js");
         const result = scanSchemas(["/path/to/schema.sql"], false, "preserve");
 
         expect(result).toHaveLength(1);
@@ -809,7 +809,7 @@ describe("scanSchemas", () => {
                 );
             `);
 
-        const { scanSchemas } = await import("../../src/parsers/jsonb.ts");
+        const { scanSchemas } = await import("../../src/parsers/jsonb.js");
         const result = scanSchemas(
             ["/path/to/schema1.sql", "/path/to/schema2.sql"],
             false,
@@ -830,7 +830,7 @@ describe("scanSchemas", () => {
                 );
             `);
 
-        const { scanSchemas } = await import("../../src/parsers/jsonb.ts");
+        const { scanSchemas } = await import("../../src/parsers/jsonb.js");
         const result = scanSchemas(
             ["/bad/path.sql", "/good/path.sql"],
             false,
@@ -848,7 +848,7 @@ describe("scanSchemas", () => {
             );
         `);
 
-        const { scanSchemas } = await import("../../src/parsers/jsonb.ts");
+        const { scanSchemas } = await import("../../src/parsers/jsonb.js");
         const result = scanSchemas(["/path/to/schema.sql"], false, "preserve");
 
         expect(result).toEqual([]);
@@ -861,7 +861,7 @@ describe("scanSchemas", () => {
             );
         `);
 
-        const { scanSchemas } = await import("../../src/parsers/jsonb.ts");
+        const { scanSchemas } = await import("../../src/parsers/jsonb.js");
         const result = scanSchemas(["/path/to/schema.sql"], true, "preserve");
 
         expect(result).toHaveLength(1);
@@ -875,7 +875,7 @@ describe("scanSchemas", () => {
             );
         `);
 
-        const { scanSchemas } = await import("../../src/parsers/jsonb.ts");
+        const { scanSchemas } = await import("../../src/parsers/jsonb.js");
         const result = scanSchemas(
             ["/path/to/schema.sql"],
             false,
@@ -892,7 +892,7 @@ describe("scanSchemas", () => {
             );
         `);
 
-        const { scanSchemas } = await import("../../src/parsers/jsonb.ts");
+        const { scanSchemas } = await import("../../src/parsers/jsonb.js");
         const result = scanSchemas(["/path/to/"], false, "preserve");
 
         // When path ends with /, .pop() returns "", so fallback to schemaPath is used

@@ -6,7 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
     parseTableDefinition,
     parseColumnDefinition,
-} from "../../../src/parsers/sql/table.ts";
+} from "../../../src/parsers/sql/table.js";
 
 describe("parseColumnDefinition", () => {
     it("should parse basic column definition", () => {
@@ -623,24 +623,24 @@ describe("parseTableDefinition", () => {
         expect(result).toBeTruthy();
         expect(result!.columns).toHaveLength(3);
     });
-  
-  it("should parse inline foreign key with schema", () => {
-      const sql = `
+
+    it("should parse inline foreign key with schema", () => {
+        const sql = `
       create table posts (
         id uuid primary key,
         user_id uuid references auth.users(id)
       )
     `;
-      const result = parseTableDefinition(sql);
+        const result = parseTableDefinition(sql);
 
-      expect(result).toBeTruthy();
-      expect(result!.columns[1].foreignKey).toMatchObject({
-          schema: "auth",
-          table: "users",
-          column: "id",
-      });
-      expect(result!.relationships[0].referencedRelation).toBe("auth.users");
-  });
+        expect(result).toBeTruthy();
+        expect(result!.columns[1].foreignKey).toMatchObject({
+            schema: "auth",
+            table: "users",
+            column: "id",
+        });
+        expect(result!.relationships[0].referencedRelation).toBe("auth.users");
+    });
 });
 
 describe("parseColumnDefinition - quotedTypeMatch extraction", () => {

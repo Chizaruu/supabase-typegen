@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { parseIndexDefinition } from "../../../src/parsers/sql/index.ts";
+import { parseIndexDefinition } from "../../../src/parsers/sql/index.js";
 
 describe("parseIndexDefinition", () => {
     it("should parse basic index", () => {

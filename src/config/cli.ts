@@ -2,9 +2,9 @@
  * Command line argument parsing
  */
 
-import type { NamingConvention, SourceType } from "../types/index.ts";
-import { GENERATOR_CONFIG } from "./constants.ts";
-import { log } from "../utils/logger.ts";
+import type { NamingConvention, SourceType } from "../types/index.js";
+import { GENERATOR_CONFIG } from "./constants.js";
+import { log } from "../utils/logger.js";
 
 interface CliArgs {
     useLocal: boolean;

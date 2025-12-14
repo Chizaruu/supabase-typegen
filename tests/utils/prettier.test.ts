@@ -6,9 +6,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
     detectPrettierConfig,
     getPrettierIndentSize,
-} from "../../src/utils/prettier.ts";
+} from "../../src/utils/prettier.js";
 import * as fs from "fs";
-import * as logger from "../../src/utils/logger.ts";
+import * as logger from "../../src/utils/logger.js";
 
 // Mock fs module
 vi.mock("fs");
@@ -351,17 +351,17 @@ printWidth: "100"
         });
 
         describe("TypeScript config files", () => {
-            it("should log warning for prettier.config.ts and continue (lines 67-72)", () => {
-                // Only prettier.config.ts and .prettierrc.json should exist
+            it("should log warning for prettier.config.js and continue (lines 67-72)", () => {
+                // Only prettier.config.js and .prettierrc.json should exist
                 vi.mocked(fs.existsSync).mockImplementation((path) => {
                     return (
-                        path.toString().endsWith("prettier.config.ts") ||
+                        path.toString().endsWith("prettier.config.js") ||
                         path.toString().endsWith(".prettierrc.json")
                     );
                 });
 
                 vi.mocked(fs.readFileSync).mockImplementation((path) => {
-                    if (path.toString().endsWith("prettier.config.ts")) {
+                    if (path.toString().endsWith("prettier.config.js")) {
                         return "export default { tabWidth: 4 }";
                     }
                     if (path.toString().endsWith(".prettierrc.json")) {
@@ -373,7 +373,7 @@ printWidth: "100"
                 const result = detectPrettierConfig();
 
                 expect(logger.log).toHaveBeenCalledWith(
-                    "  Found prettier.config.ts but cannot parse JS config files",
+                    "  Found prettier.config.js but cannot parse JS config files",
                     "yellow"
                 );
                 expect(logger.log).toHaveBeenCalledWith(
@@ -383,17 +383,17 @@ printWidth: "100"
                 expect(result?.tabWidth).toBe(2);
             });
 
-            it("should log warning for .prettierrc.ts and skip it (lines 67-72, 113-114)", () => {
-                // Only .prettierrc.ts and package.json should exist
+            it("should log warning for .prettierrc.js and skip it (lines 67-72, 113-114)", () => {
+                // Only .prettierrc.js and package.json should exist
                 vi.mocked(fs.existsSync).mockImplementation((path) => {
                     return (
-                        path.toString().endsWith(".prettierrc.ts") ||
+                        path.toString().endsWith(".prettierrc.js") ||
                         path.toString().endsWith("package.json")
                     );
                 });
 
                 vi.mocked(fs.readFileSync).mockImplementation((path) => {
-                    if (path.toString().endsWith(".prettierrc.ts")) {
+                    if (path.toString().endsWith(".prettierrc.js")) {
                         return "export default { tabWidth: 8 }";
                     }
                     if (path.toString().endsWith("package.json")) {
@@ -407,7 +407,7 @@ printWidth: "100"
                 const result = detectPrettierConfig();
 
                 expect(logger.log).toHaveBeenCalledWith(
-                    "  Found .prettierrc.ts but cannot parse JS config files",
+                    "  Found .prettierrc.js but cannot parse JS config files",
                     "yellow"
                 );
                 expect(result?.tabWidth).toBe(3);

@@ -6,7 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
     mapPostgresTypeToTypeScript,
     detectGeometricTypes,
-} from "../../src/utils/type-mapping.ts";
+} from "../../src/utils/type-mapping.js";
 
 describe("mapPostgresTypeToTypeScript", () => {
     const schema = "public";

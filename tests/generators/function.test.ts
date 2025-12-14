@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { generateFunctionTypes } from "../../src/generators/function.ts";
-import type { FunctionDefinition } from "../../src/types/index.ts";
+import { generateFunctionTypes } from "../../src/generators/function.js";
+import type { FunctionDefinition } from "../../src/types/index.js";
 
 describe("generateFunctionTypes", () => {
     it("should generate function with no args", () => {

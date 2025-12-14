@@ -6,7 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
     parseAlterTableForeignKey,
     parseAlterTableUnique,
-} from "../../../src/parsers/sql/constraint.ts";
+} from "../../../src/parsers/sql/constraint.js";
 
 describe("parseAlterTableForeignKey", () => {
     it("should parse basic foreign key", () => {

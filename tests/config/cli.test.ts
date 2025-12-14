@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { parseCommandLineArgs } from "../../src/config/cli.ts";
-import * as logger from "../../src/utils/logger.ts";
+import { parseCommandLineArgs } from "../../src/config/cli.js";
+import * as logger from "../../src/utils/logger.js";
 
 describe("parseCommandLineArgs", () => {
     let originalArgv: string[];
@@ -26,7 +26,7 @@ describe("parseCommandLineArgs", () => {
     });
 
     it("should parse default values", () => {
-        process.argv = ["node", "script.ts"];
+        process.argv = ["node", "script.js"];
         const result = parseCommandLineArgs();
 
         expect(result.source).toBe("sql");
@@ -39,7 +39,7 @@ describe("parseCommandLineArgs", () => {
     });
 
     it("should parse --workdir flag", () => {
-        process.argv = ["node", "script.ts", "--workdir", "./my-supabase"];
+        process.argv = ["node", "script.js", "--workdir", "./my-supabase"];
         const result = parseCommandLineArgs();
 
         expect(result.workdir).toBe("./my-supabase");
@@ -47,28 +47,28 @@ describe("parseCommandLineArgs", () => {
     });
 
     it("should parse --output flag", () => {
-        process.argv = ["node", "script.ts", "--output", "./types"];
+        process.argv = ["node", "script.js", "--output", "./types"];
         const result = parseCommandLineArgs();
 
         expect(result.outputDir).toBe("./types");
     });
 
     it("should parse -o shorthand for output", () => {
-        process.argv = ["node", "script.ts", "-o", "./types"];
+        process.argv = ["node", "script.js", "-o", "./types"];
         const result = parseCommandLineArgs();
 
         expect(result.outputDir).toBe("./types");
     });
 
     it("should parse --schema flag", () => {
-        process.argv = ["node", "script.ts", "--schema", "custom"];
+        process.argv = ["node", "script.js", "--schema", "custom"];
         const result = parseCommandLineArgs();
 
         expect(result.schema).toBe("custom");
     });
 
     it("should parse --naming flag", () => {
-        process.argv = ["node", "script.ts", "--naming", "camelCase"];
+        process.argv = ["node", "script.js", "--naming", "camelCase"];
         const result = parseCommandLineArgs();
 
         expect(result.namingConvention).toBe("camelCase");
@@ -84,42 +84,42 @@ describe("parseCommandLineArgs", () => {
         ];
 
         conventions.forEach((convention) => {
-            process.argv = ["node", "script.ts", "--naming", convention];
+            process.argv = ["node", "script.js", "--naming", convention];
             const result = parseCommandLineArgs();
             expect(result.namingConvention).toBe(convention);
         });
     });
 
     it("should parse --alphabetical flag", () => {
-        process.argv = ["node", "script.ts", "--alphabetical"];
+        process.argv = ["node", "script.js", "--alphabetical"];
         const result = parseCommandLineArgs();
 
         expect(result.alphabetical).toBe(true);
     });
 
     it("should parse --sort flag (alias for alphabetical)", () => {
-        process.argv = ["node", "script.ts", "--sort"];
+        process.argv = ["node", "script.js", "--sort"];
         const result = parseCommandLineArgs();
 
         expect(result.alphabetical).toBe(true);
     });
 
     it("should parse --indent flag", () => {
-        process.argv = ["node", "script.ts", "--indent", "4"];
+        process.argv = ["node", "script.js", "--indent", "4"];
         const result = parseCommandLineArgs();
 
         expect(result.indentSize).toBe(4);
     });
 
     it("should parse --indent-size flag", () => {
-        process.argv = ["node", "script.ts", "--indent-size", "2"];
+        process.argv = ["node", "script.js", "--indent-size", "2"];
         const result = parseCommandLineArgs();
 
         expect(result.indentSize).toBe(2);
     });
 
     it("should handle invalid indent size", () => {
-        process.argv = ["node", "script.ts", "--indent", "99"];
+        process.argv = ["node", "script.js", "--indent", "99"];
         const result = parseCommandLineArgs();
 
         // Verify the warning was logged
@@ -133,98 +133,98 @@ describe("parseCommandLineArgs", () => {
     });
 
     it("should parse --use-prettier flag", () => {
-        process.argv = ["node", "script.ts", "--use-prettier"];
+        process.argv = ["node", "script.js", "--use-prettier"];
         const result = parseCommandLineArgs();
 
         expect(result.usePrettier).toBe(true);
     });
 
     it("should parse --no-prettier flag", () => {
-        process.argv = ["node", "script.ts", "--no-prettier"];
+        process.argv = ["node", "script.js", "--no-prettier"];
         const result = parseCommandLineArgs();
 
         expect(result.usePrettier).toBe(false);
     });
 
     it("should parse --extract-nested flag", () => {
-        process.argv = ["node", "script.ts", "--extract-nested"];
+        process.argv = ["node", "script.js", "--extract-nested"];
         const result = parseCommandLineArgs();
 
         expect(result.extractNestedTypes).toBe(true);
     });
 
     it("should parse --deep-nested flag (alias)", () => {
-        process.argv = ["node", "script.ts", "--deep-nested"];
+        process.argv = ["node", "script.js", "--deep-nested"];
         const result = parseCommandLineArgs();
 
         expect(result.extractNestedTypes).toBe(true);
     });
 
     it("should parse --deduplicate flag", () => {
-        process.argv = ["node", "script.ts", "--deduplicate"];
+        process.argv = ["node", "script.js", "--deduplicate"];
         const result = parseCommandLineArgs();
 
         expect(result.deduplicateTypes).toBe(true);
     });
 
     it("should parse --no-deduplicate flag", () => {
-        process.argv = ["node", "script.ts", "--no-deduplicate"];
+        process.argv = ["node", "script.js", "--no-deduplicate"];
         const result = parseCommandLineArgs();
 
         expect(result.deduplicateTypes).toBe(false);
     });
 
     it("should parse --include-indexes flag", () => {
-        process.argv = ["node", "script.ts", "--include-indexes"];
+        process.argv = ["node", "script.js", "--include-indexes"];
         const result = parseCommandLineArgs();
 
         expect(result.includeIndexes).toBe(true);
     });
 
     it("should parse --no-comments flag", () => {
-        process.argv = ["node", "script.ts", "--no-comments"];
+        process.argv = ["node", "script.js", "--no-comments"];
         const result = parseCommandLineArgs();
 
         expect(result.includeComments).toBe(false);
     });
 
     it("should parse --skip-comments flag (alias)", () => {
-        process.argv = ["node", "script.ts", "--skip-comments"];
+        process.argv = ["node", "script.js", "--skip-comments"];
         const result = parseCommandLineArgs();
 
         expect(result.includeComments).toBe(false);
     });
 
     it("should parse --silent flag", () => {
-        process.argv = ["node", "script.ts", "--silent"];
+        process.argv = ["node", "script.js", "--silent"];
         const result = parseCommandLineArgs();
 
         expect(result.verboseLogging).toBe(false);
     });
 
     it("should parse --quiet flag (alias)", () => {
-        process.argv = ["node", "script.ts", "--quiet"];
+        process.argv = ["node", "script.js", "--quiet"];
         const result = parseCommandLineArgs();
 
         expect(result.verboseLogging).toBe(false);
     });
 
     it("should parse --no-logs flag (alias)", () => {
-        process.argv = ["node", "script.ts", "--no-logs"];
+        process.argv = ["node", "script.js", "--no-logs"];
         const result = parseCommandLineArgs();
 
         expect(result.verboseLogging).toBe(false);
     });
 
     it("should parse --db flag", () => {
-        process.argv = ["node", "script.ts", "--db"];
+        process.argv = ["node", "script.js", "--db"];
         const result = parseCommandLineArgs();
 
         expect(result.source).toBe("db");
     });
 
     it("should parse --use-database flag (alias)", () => {
-        process.argv = ["node", "script.ts", "--use-database"];
+        process.argv = ["node", "script.js", "--use-database"];
         const result = parseCommandLineArgs();
 
         expect(result.source).toBe("db");
@@ -233,7 +233,7 @@ describe("parseCommandLineArgs", () => {
     it("should parse --connection-string flag", () => {
         process.argv = [
             "node",
-            "script.ts",
+            "script.js",
             "--connection-string",
             "postgresql://localhost",
         ];
@@ -246,7 +246,7 @@ describe("parseCommandLineArgs", () => {
     it("should handle multiple flags together", () => {
         process.argv = [
             "node",
-            "script.ts",
+            "script.js",
             "--workdir",
             "./supabase",
             "--output",
@@ -274,7 +274,7 @@ describe("parseCommandLineArgs", () => {
     it("should use environment variable for connection string if not provided", () => {
         const originalEnv = process.env.DATABASE_URL;
         process.env.DATABASE_URL = "postgresql://env-connection";
-        process.argv = ["node", "script.ts"];
+        process.argv = ["node", "script.js"];
 
         const result = parseCommandLineArgs();
 
@@ -293,7 +293,7 @@ describe("parseCommandLineArgs", () => {
         process.env.DATABASE_URL = "postgresql://env-connection";
         process.argv = [
             "node",
-            "script.ts",
+            "script.js",
             "--connection-string",
             "postgresql://cli-connection",
         ];
@@ -311,14 +311,14 @@ describe("parseCommandLineArgs", () => {
     });
 
     it("should parse --local flag without workdir argument", () => {
-        process.argv = ["node", "script.ts", "--local"];
+        process.argv = ["node", "script.js", "--local"];
         const result = parseCommandLineArgs();
 
         expect(result.useLocal).toBe(true);
     });
 
     it("should parse --local flag with workdir argument", () => {
-        process.argv = ["node", "script.ts", "--local", "./my-supabase"];
+        process.argv = ["node", "script.js", "--local", "./my-supabase"];
         const result = parseCommandLineArgs();
 
         expect(result.useLocal).toBe(true);
@@ -327,7 +327,7 @@ describe("parseCommandLineArgs", () => {
     });
 
     it("should parse --local flag followed by another flag", () => {
-        process.argv = ["node", "script.ts", "--local", "--schema", "custom"];
+        process.argv = ["node", "script.js", "--local", "--schema", "custom"];
         const result = parseCommandLineArgs();
 
         expect(result.useLocal).toBe(true);
@@ -335,7 +335,7 @@ describe("parseCommandLineArgs", () => {
     });
 
     it("should handle positional workdir argument", () => {
-        process.argv = ["node", "script.ts", "./custom-path"];
+        process.argv = ["node", "script.js", "./custom-path"];
         const result = parseCommandLineArgs();
 
         expect(result.workdir).toBe("./custom-path");
@@ -343,14 +343,14 @@ describe("parseCommandLineArgs", () => {
     });
 
     it("should handle multiple positional arguments (last one wins)", () => {
-        process.argv = ["node", "script.ts", "./path1", "./path2"];
+        process.argv = ["node", "script.js", "./path1", "./path2"];
         const result = parseCommandLineArgs();
 
         expect(result.workdir).toBe("./path2");
     });
 
     it("should handle invalid naming convention", () => {
-        process.argv = ["node", "script.ts", "--naming", "invalid-convention"];
+        process.argv = ["node", "script.js", "--naming", "invalid-convention"];
         const result = parseCommandLineArgs();
 
         // Verify the warning was logged
@@ -366,35 +366,35 @@ describe("parseCommandLineArgs", () => {
     });
 
     it("should parse --dedupe alias for deduplicate", () => {
-        process.argv = ["node", "script.ts", "--dedupe"];
+        process.argv = ["node", "script.js", "--dedupe"];
         const result = parseCommandLineArgs();
 
         expect(result.deduplicateTypes).toBe(true);
     });
 
     it("should parse --dedupe-types alias for deduplicate", () => {
-        process.argv = ["node", "script.ts", "--dedupe-types"];
+        process.argv = ["node", "script.js", "--dedupe-types"];
         const result = parseCommandLineArgs();
 
         expect(result.deduplicateTypes).toBe(true);
     });
 
     it("should parse --no-dedupe alias for no-deduplicate", () => {
-        process.argv = ["node", "script.ts", "--no-dedupe"];
+        process.argv = ["node", "script.js", "--no-dedupe"];
         const result = parseCommandLineArgs();
 
         expect(result.deduplicateTypes).toBe(false);
     });
 
     it("should parse --indexes alias for include-indexes", () => {
-        process.argv = ["node", "script.ts", "--indexes"];
+        process.argv = ["node", "script.js", "--indexes"];
         const result = parseCommandLineArgs();
 
         expect(result.includeIndexes).toBe(true);
     });
 
     it("should parse --sort-alphabetical alias", () => {
-        process.argv = ["node", "script.ts", "--sort-alphabetical"];
+        process.argv = ["node", "script.js", "--sort-alphabetical"];
         const result = parseCommandLineArgs();
 
         expect(result.alphabetical).toBe(true);
@@ -403,7 +403,7 @@ describe("parseCommandLineArgs", () => {
     it("should parse --naming-convention alias", () => {
         process.argv = [
             "node",
-            "script.ts",
+            "script.js",
             "--naming-convention",
             "PascalCase",
         ];
@@ -415,7 +415,7 @@ describe("parseCommandLineArgs", () => {
     it("should handle mixed positional and flag arguments", () => {
         process.argv = [
             "node",
-            "script.ts",
+            "script.js",
             "./custom-workdir",
             "--schema",
             "custom",

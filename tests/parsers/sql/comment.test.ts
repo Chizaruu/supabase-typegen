@@ -6,7 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
     parseTableComment,
     parseColumnComment,
-} from "../../../src/parsers/sql/comment.ts";
+} from "../../../src/parsers/sql/comment.js";
 
 describe("parseTableComment", () => {
     it("should parse basic table comment", () => {

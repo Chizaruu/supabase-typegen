@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { generateConstants } from "../../src/generators/constants.ts";
-import type { EnumDefinition } from "../../src/types/index.ts";
+import { generateConstants } from "../../src/generators/constants.js";
+import type { EnumDefinition } from "../../src/types/index.js";
 
 describe("generateConstants", () => {
     describe("basic functionality", () => {

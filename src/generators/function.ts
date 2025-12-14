@@ -2,9 +2,9 @@
  * Function type generation
  */
 
-import type { FunctionDefinition, NamingConvention } from "../types/index.ts";
-import { convertCase } from "../utils/naming.ts";
-import { mapPostgresTypeToTypeScript } from "../utils/type-mapping.ts";
+import type { FunctionDefinition, NamingConvention } from "../types/index.js";
+import { convertCase } from "../utils/naming.js";
+import { mapPostgresTypeToTypeScript } from "../utils/type-mapping.js";
 
 export function generateFunctionTypes(
     functions: FunctionDefinition[],

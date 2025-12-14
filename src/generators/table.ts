@@ -6,9 +6,9 @@ import type {
     TableDefinition,
     NamingConvention,
     IndexDefinition,
-} from "../types/index.ts";
-import { convertCase } from "../utils/naming.ts";
-import { mapPostgresTypeToTypeScript } from "../utils/type-mapping.ts";
+} from "../types/index.js";
+import { convertCase } from "../utils/naming.js";
+import { mapPostgresTypeToTypeScript } from "../utils/type-mapping.js";
 
 function generateIndexMetadata(
     indexes: IndexDefinition[],

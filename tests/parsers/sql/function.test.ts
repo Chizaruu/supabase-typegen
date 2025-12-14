@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { parseFunctionDefinition } from "../../../src/parsers/sql/function.ts";
+import { parseFunctionDefinition } from "../../../src/parsers/sql/function.js";
 
 describe("parseFunctionDefinition", () => {
     it("should parse basic function", () => {

@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { generateGeometricTypes } from "../../src/generators/geometric.ts";
+import { generateGeometricTypes } from "../../src/generators/geometric.js";
 
 describe("generateGeometricTypes", () => {
     it("should generate point type", () => {

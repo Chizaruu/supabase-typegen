@@ -4,8 +4,8 @@
 
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
-import type { PrettierConfig } from "../types/index.ts";
-import { log } from "./logger.ts";
+import type { PrettierConfig } from "../types/index.js";
+import { log } from "./logger.js";
 
 function parseSimpleYaml(content: string): PrettierConfig | null {
     try {
@@ -54,14 +54,14 @@ export function detectPrettierConfig(): PrettierConfig | null {
         ".prettierrc.json",
         ".prettierrc.yaml",
         ".prettierrc.yml",
-        "prettier.config.ts",
-        ".prettierrc.ts",
+        "prettier.config.js",
+        ".prettierrc.js",
         "package.json",
     ];
 
-    // First pass: check for .ts files and log warnings
+    // First pass: check for .js files and log warnings
     for (const configPath of possiblePaths) {
-        if (configPath.endsWith(".ts")) {
+        if (configPath.endsWith(".js")) {
             const fullPath = join(process.cwd(), configPath);
             if (existsSync(fullPath)) {
                 log(
@@ -108,8 +108,8 @@ export function detectPrettierConfig(): PrettierConfig | null {
                 }
             }
 
-            // Skip .ts files in second pass since we already warned about them
-            if (configPath.endsWith(".ts")) {
+            // Skip .js files in second pass since we already warned about them
+            if (configPath.endsWith(".js")) {
                 continue;
             }
         } catch (error) {

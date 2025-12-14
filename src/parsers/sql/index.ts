@@ -2,7 +2,7 @@
  * Index definition parsing from SQL
  */
 
-import type { IndexDefinition } from "../../types/index.ts";
+import type { IndexDefinition } from "../../types/index.js";
 
 export function parseIndexDefinition(
     sqlContent: string,

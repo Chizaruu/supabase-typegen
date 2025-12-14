@@ -2,7 +2,7 @@
  * Naming convention conversion utilities
  */
 
-import type { NamingConvention } from "../types/index.ts";
+import type { NamingConvention } from "../types/index.js";
 
 export function convertCase(str: string, convention: NamingConvention): string {
     if (convention === "preserve") {
