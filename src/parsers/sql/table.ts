@@ -8,6 +8,14 @@ import type {
     RelationshipDefinition,
 } from "../../types/index.ts";
 
+/**
+ * Helper function to extract identifier value from regex match groups
+ * Handles quoted and unquoted identifiers
+ */
+function extractIdentifier(...groups: (string | undefined)[]): string {
+    return groups.find((g) => g !== undefined) || "";
+}
+
 function splitByComma(str: string): string[] {
     const parts: string[] = [];
     let current = "";
@@ -150,14 +158,30 @@ export function parseColumnDefinition(
         | { table: string; column: string; schema?: string }
         | undefined;
     const referencesMatch = remainingConstraints.match(
-        /\breferences\s+(?:["']?(\w+)["']?\.)?["']?(\w+)["']?\s*\(["']?(\w+)["']?\)/i
+        /\breferences\s+(?:(?:"([^"]+)"|'([^']+)'|(\w+))\.)?(?:"([^"]+)"|'([^']+)'|(\w+))\s*\((?:"([^"]+)"|'([^']+)'|(\w+))\)/i
     );
     if (referencesMatch) {
         foreignKey = {
-            schema: referencesMatch[1],
-            table: referencesMatch[2],
-            column: referencesMatch[3],
+            schema: extractIdentifier(
+                referencesMatch[1],
+                referencesMatch[2],
+                referencesMatch[3]
+            ),
+            table: extractIdentifier(
+                referencesMatch[4],
+                referencesMatch[5],
+                referencesMatch[6]
+            ),
+            column: extractIdentifier(
+                referencesMatch[7],
+                referencesMatch[8],
+                referencesMatch[9]
+            ),
         };
+        // Don't set schema if it's empty
+        if (!foreignKey.schema) {
+            delete foreignKey.schema;
+        }
     }
 
     return {
@@ -177,15 +201,24 @@ export function parseTableDefinition(
     schema: string = "public"
 ): TableDefinition | null {
     const tableStartMatch = sqlContent.match(
-        /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:["']?(\w+)["']?\.)?["']?(\w+)["']?\s*\(/i
+        /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:(?:"([^"]+)"|'([^']+)'|(\w+))\.)?(?:"([^"]+)"|'([^']+)'|(\w+))\s*\(/i
     );
 
     if (!tableStartMatch) {
         return null;
     }
 
-    const tableSchema = tableStartMatch[1] || schema;
-    const tableName = tableStartMatch[2];
+    const tableSchema =
+        extractIdentifier(
+            tableStartMatch[1],
+            tableStartMatch[2],
+            tableStartMatch[3]
+        ) || schema;
+    const tableName = extractIdentifier(
+        tableStartMatch[4],
+        tableStartMatch[5],
+        tableStartMatch[6]
+    );
     const startIndex = tableStartMatch.index! + tableStartMatch[0].length;
 
     let parenDepth = 1;
@@ -245,17 +278,29 @@ export function parseTableDefinition(
         }
 
         const constraintMatch = trimmed.match(
-            /^constraint\s+["']?(\w+)["']?\s+foreign\s+key\s*\(([^)]+)\)\s+references\s+(?:["']?(\w+)["']?\.)?["']?(\w+)["']?\s*\(([^)]+)\)/i
+            /^constraint\s+(?:"([^"]+)"|'([^']+)'|([\w-]+))\s+foreign\s+key\s*\(([^)]+)\)\s+references\s+(?:(?:"([^"]+)"|'([^']+)'|([\w-]+))\.)?(?:"([^"]+)"|'([^']+)'|([\w-]+))\s*\(([^)]+)\)/i
         );
 
         if (constraintMatch) {
-            const constraintName = constraintMatch[1];
-            const columns = constraintMatch[2]
+            const constraintName = extractIdentifier(
+                constraintMatch[1],
+                constraintMatch[2],
+                constraintMatch[3]
+            );
+            const columns = constraintMatch[4]
                 .split(",")
                 .map((c) => c.trim().replace(/["']/g, ""));
-            const refSchema = constraintMatch[3];
-            const refTable = constraintMatch[4];
-            const refColumns = constraintMatch[5]
+            const refSchema = extractIdentifier(
+                constraintMatch[5],
+                constraintMatch[6],
+                constraintMatch[7]
+            );
+            const refTable = extractIdentifier(
+                constraintMatch[8],
+                constraintMatch[9],
+                constraintMatch[10]
+            );
+            const refColumns = constraintMatch[11]
                 .split(",")
                 .map((c) => c.trim().replace(/["']/g, ""));
 

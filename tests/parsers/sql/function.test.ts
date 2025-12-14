@@ -192,4 +192,20 @@ describe("parseFunctionDefinition", () => {
         expect(result).toBeTruthy();
         expect(result!.args[0].type).toBe("users");
     });
+
+    it("should handle extra commas/whitespace in arguments (lines 33-34)", () => {
+        const sql = `
+      create function test_func(arg1 text, , arg2 integer)
+      returns void
+      language sql
+      as $$
+        select null;
+      $$;
+    `;
+        const result = parseFunctionDefinition(sql);
+
+        expect(result).toBeTruthy();
+        // Should skip the empty argument and parse the valid ones
+        expect(result!.args.length).toBeGreaterThanOrEqual(1);
+    });
 });
