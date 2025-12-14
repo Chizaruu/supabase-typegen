@@ -16,22 +16,28 @@ export function parseJsonbColumns(
 ): JsonbColumn[] {
     const jsonbColumns: JsonbColumn[] = [];
 
+    // Support schema-qualified names and quoted identifiers
+    // Matches: CREATE TABLE [IF NOT EXISTS] [schema.]table (...)
     const createTableMatch = sqlContent.match(
-        /create table (?:if not exists )?["']?(\w+)["']?\s*\(([\s\S]*?)\);/i
+        /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:(?:["']?(\w+)["']?|"([^"]+)")\.)?(?:["']?(\w+)["']?|"([^"]+)")\s*\(([\s\S]*?)\);/i
     );
 
     if (!createTableMatch) {
         return jsonbColumns;
     }
 
-    const tableName = createTableMatch[1];
-    const tableBody = createTableMatch[2];
+    // Extract table name (unquoted or quoted)
+    const tableName = createTableMatch[3] || createTableMatch[4];
+    const tableBody = createTableMatch[5];
 
-    const columnPattern = /(\w+)\s+jsonb(?:\s+not null)?\s+default\s+/gi;
+    // Support quoted and unquoted column names
+    const columnPattern =
+        /(?:["']?(\w+)["']?|"([^"]+)")\s+jsonb(?:\s+not\s+null)?\s+default\s+/gi;
     let match: RegExpExecArray | null;
 
     while ((match = columnPattern.exec(tableBody)) !== null) {
-        const columnName = match[1];
+        // Extract column name (unquoted or quoted)
+        const columnName = match[1] || match[2];
         const startPos = match.index + match[0].length;
 
         let defaultValue = "";
