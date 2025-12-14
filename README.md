@@ -16,7 +16,7 @@ Generate type-safe TypeScript definitions from your Supabase SQL migration files
 -   ✅ **Enums** - Type-safe enum definitions with runtime constants
 -   ✅ **Functions** - Function signatures with typed arguments and returns
 -   ✅ **Composite Types** - PostgreSQL composite type definitions
--   ✅ **Views** - Read-only view types (including materialized views)
+-   ✅ **Views** - Read-only view types with intelligent type inference (including materialized views)
 -   ✅ **Indexes** - Index metadata (optional with `--include-indexes`)
 
 ### Advanced Features
@@ -303,6 +303,43 @@ products: {
 }
 ```
 
+### Views
+
+**Input SQL:**
+
+```sql
+CREATE TABLE users (
+  id UUID PRIMARY KEY,
+  email TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE VIEW active_users AS
+SELECT
+  id,
+  email,
+  created_at,
+  COUNT(*) OVER () as total_count
+FROM users
+WHERE deleted_at IS NULL;
+```
+
+**Generated Types:**
+
+```typescript
+Views: {
+    active_users: {
+        Row: {
+            id: string;
+            email: string;
+            created_at: string;
+            total_count: number;
+        }
+        Relationships: [];
+    }
+}
+```
+
 ### Relationships
 
 **Input SQL:**
@@ -449,6 +486,79 @@ users: {
   ]
 }
 ```
+
+### View Type Inference
+
+Views are automatically parsed with intelligent type inference for columns. The generator analyzes SELECT expressions to determine accurate types:
+
+**Input SQL:**
+
+```sql
+CREATE TABLE orders (
+  id UUID PRIMARY KEY,
+  total NUMERIC NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE VIEW order_stats AS
+SELECT
+  COUNT(*) as order_count,
+  SUM(total) as total_revenue,
+  AVG(total) as average_order,
+  MAX(created_at) as last_order_date,
+  ARRAY_AGG(id) as order_ids,
+  total::TEXT as total_text
+FROM orders;
+
+-- Materialized views also supported
+CREATE MATERIALIZED VIEW daily_sales AS
+SELECT
+  DATE(created_at) as sale_date,
+  COUNT(*) as num_orders,
+  SUM(total) as daily_revenue
+FROM orders
+GROUP BY DATE(created_at);
+```
+
+**Generated Types:**
+
+```typescript
+Views: {
+  order_stats: {
+    Row: {
+      order_count: number             // Inferred from COUNT(*)
+      total_revenue: number | null    // Inferred from SUM()
+      average_order: number | null    // Inferred from AVG()
+      last_order_date: string | null  // Inferred from MAX() on timestamp
+      order_ids: string[] | null      // Inferred from ARRAY_AGG()
+      total_text: string | null       // Inferred from CAST
+    }
+    Relationships: []
+  }
+  daily_sales: {
+    Row: {
+      sale_date: string | null        // Inferred from DATE()
+      num_orders: number              // Inferred from COUNT(*)
+      daily_revenue: number | null    // Inferred from SUM()
+    }
+    Insert: never                     // Materialized views support INSERT
+    Update: never
+    Relationships: []
+  }
+}
+```
+
+**Type Inference Rules:**
+
+The generator intelligently infers types from common SQL patterns:
+
+-   **Aggregate Functions**: `COUNT()` → `bigint`, `SUM()/AVG()` → `numeric`, `MIN()/MAX()` → same as source column
+-   **Array Functions**: `ARRAY_AGG()` → array type, `STRING_AGG()` → `text`
+-   **JSON Functions**: `JSON_AGG()/JSONB_AGG()` → `json`/`jsonb`
+-   **Date/Time Functions**: `NOW()` → `timestamp with time zone`, `CURRENT_DATE` → `date`
+-   **Type Casts**: `column::type` and `CAST(column AS type)` → specified type
+-   **Column References**: Direct column references inherit the source table's type
+-   **Complex Expressions**: When type cannot be inferred, defaults to `unknown`
 
 ### Geometric Types
 
@@ -720,7 +830,7 @@ const statusOptions = Constants.public.Enums.user_status.map((status) => ({
 
 ## 🐛 Known Limitations
 
--   **View Columns**: Currently requires explicit column typing or database introspection
+-   **Complex View Expressions**: Some advanced SQL expressions in views may infer as `unknown` type and need manual refinement
 -   **Complex JSONB**: Very deep nesting (5+ levels) may need manual type refinement
 -   **Recursive Types**: Self-referential types need manual handling
 -   **Computed Columns**: Generated/computed columns not yet supported
