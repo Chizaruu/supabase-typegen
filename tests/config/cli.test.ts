@@ -2,8 +2,9 @@
  * Tests for CLI argument parsing
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { parseCommandLineArgs } from "../../src/config/cli.ts";
+import * as logger from "../../src/utils/logger.ts";
 
 describe("parseCommandLineArgs", () => {
     let originalArgv: string[];
@@ -11,11 +12,17 @@ describe("parseCommandLineArgs", () => {
     beforeEach(() => {
         // Save original process.argv
         originalArgv = process.argv;
+
+        // Mock the log function to suppress console output during tests
+        vi.spyOn(logger, "log").mockImplementation(() => {});
     });
 
     afterEach(() => {
         // Restore original process.argv
         process.argv = originalArgv;
+
+        // Restore all mocks
+        vi.restoreAllMocks();
     });
 
     it("should parse default values", () => {
@@ -114,6 +121,13 @@ describe("parseCommandLineArgs", () => {
     it("should handle invalid indent size", () => {
         process.argv = ["node", "script.ts", "--indent", "99"];
         const result = parseCommandLineArgs();
+
+        // Verify the warning was logged
+        expect(logger.log).toHaveBeenCalledWith(
+            expect.stringContaining("Invalid indent size: 99"),
+            "yellow",
+            true
+        );
 
         expect(result.indentSize).toBeNull();
     });
