@@ -7,7 +7,7 @@ export function parseTableComment(
     schema: string = "public"
 ): { tableName: string; comment: string; schema: string } | null {
     const commentMatch = sqlContent.match(
-        /comment\s+on\s+table\s+(?:["']?(\w+)["']?\.)?["']?(\w+)["']?\s+is\s+'([^']+)'/i
+        /comment\s+on\s+table\s+(?:["']?(\w+)["']?\.)?["']?(\w+)["']?\s+is\s+'((?:[^']|'')*)'/i
     );
 
     if (!commentMatch) {
@@ -16,7 +16,7 @@ export function parseTableComment(
 
     const tableSchema = commentMatch[1] || schema;
     const tableName = commentMatch[2];
-    const comment = commentMatch[3];
+    const comment = commentMatch[3].replace(/''/g, "'");
 
     return {
         tableName,
@@ -35,7 +35,7 @@ export function parseColumnComment(
     schema: string;
 } | null {
     const commentMatch = sqlContent.match(
-        /comment\s+on\s+column\s+(?:["']?(\w+)["']?\.)?["']?(\w+)["']?\.["']?(\w+)["']?\s+is\s+'([^']+)'/i
+        /comment\s+on\s+column\s+(?:["']?(\w+)["']?\.)?["']?(\w+)["']?\.["']?(\w+)["']?\s+is\s+'((?:[^']|'')*)'/i
     );
 
     if (!commentMatch) {
@@ -45,7 +45,7 @@ export function parseColumnComment(
     const tableSchema = commentMatch[1] || schema;
     const tableName = commentMatch[2];
     const columnName = commentMatch[3];
-    const comment = commentMatch[4];
+    const comment = commentMatch[4].replace(/''/g, "'");
 
     return {
         tableName,

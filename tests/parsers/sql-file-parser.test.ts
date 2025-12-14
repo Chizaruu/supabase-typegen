@@ -1,0 +1,2105 @@
+/**
+ * Tests for SQL file parser orchestrator
+ *
+ * Coverage targets:
+ * - parseSqlFiles: complete orchestration flow
+ * - File reading and statement splitting
+ * - Parsing all SQL definition types
+ * - Comment handling
+ * - Index attachment
+ * - ALTER TABLE constraint handling
+ * - Foreign key relationship detection
+ * - Error handling
+ */
+
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { parseSqlFiles } from "../../src/parsers/sql-file-parser.ts";
+import * as fs from "fs";
+import * as logger from "../../src/utils/logger.ts";
+import * as sqlParsers from "../../src/parsers/sql-parsers.ts";
+import type {
+    TableDefinition,
+    EnumDefinition,
+    FunctionDefinition,
+    CompositeTypeDefinition,
+    IndexDefinition,
+} from "../../src/types/index.ts";
+
+// Mock modules
+vi.mock("fs");
+
+describe("SQL File Parser", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.spyOn(logger, "log").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        vi.clearAllMocks();
+    });
+
+    describe("parseSqlFiles", () => {
+        describe("Basic parsing", () => {
+            it("should parse a simple table definition", () => {
+                const sqlContent = `
+                    CREATE TABLE users (
+                        id UUID PRIMARY KEY,
+                        email TEXT NOT NULL
+                    );
+                `;
+
+                const mockTable: TableDefinition = {
+                    schema: "public",
+                    name: "users",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [],
+                };
+
+                vi.mocked(fs.readFileSync).mockReturnValue(sqlContent);
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockReturnValue(
+                    mockTable
+                );
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(result.tables).toHaveLength(1);
+                expect(result.tables[0].name).toBe("users");
+                expect(logger.log).toHaveBeenCalledWith(
+                    expect.stringContaining("Parsed 1 table(s)"),
+                    "green"
+                );
+            });
+
+            it("should parse multiple files", () => {
+                const sqlContent1 = "CREATE TABLE users (id UUID);";
+                const sqlContent2 = "CREATE TABLE posts (id UUID);";
+
+                const mockTable1: TableDefinition = {
+                    schema: "public",
+                    name: "users",
+                    columns: [],
+                    relationships: [],
+                    indexes: [],
+                };
+
+                const mockTable2: TableDefinition = {
+                    schema: "public",
+                    name: "posts",
+                    columns: [],
+                    relationships: [],
+                    indexes: [],
+                };
+
+                vi.mocked(fs.readFileSync)
+                    .mockReturnValueOnce(sqlContent1)
+                    .mockReturnValueOnce(sqlContent2);
+
+                let tableCount = 0;
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockImplementation(
+                    () => {
+                        tableCount++;
+                        return tableCount === 1 ? mockTable1 : mockTable2;
+                    }
+                );
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(
+                    ["/path/to/users.sql", "/path/to/posts.sql"],
+                    "public"
+                );
+
+                expect(result.tables).toHaveLength(2);
+                expect(logger.log).toHaveBeenCalledWith(
+                    expect.stringContaining("Processing: users.sql"),
+                    "cyan"
+                );
+                expect(logger.log).toHaveBeenCalledWith(
+                    expect.stringContaining("Processing: posts.sql"),
+                    "cyan"
+                );
+            });
+
+            it("should handle empty SQL content", () => {
+                vi.mocked(fs.readFileSync).mockReturnValue("");
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/empty.sql"], "public");
+
+                expect(result.tables).toHaveLength(0);
+                expect(result.enums).toHaveLength(0);
+                expect(result.functions).toHaveLength(0);
+                expect(result.compositeTypes).toHaveLength(0);
+            });
+
+            it("should skip empty statements", () => {
+                const sqlContent = ";\n\n;\n\n;";
+
+                vi.mocked(fs.readFileSync).mockReturnValue(sqlContent);
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(result.tables).toHaveLength(0);
+            });
+
+            it("should log filename correctly", () => {
+                vi.mocked(fs.readFileSync).mockReturnValue("");
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+
+                parseSqlFiles(["/path/to/migrations/001_schema.sql"], "public");
+
+                expect(logger.log).toHaveBeenCalledWith(
+                    expect.stringContaining("001_schema.sql"),
+                    "cyan"
+                );
+            });
+        });
+
+        describe("Parsing different SQL types", () => {
+            // Note: Individual tests in this suite set up their own mocks
+            // No beforeEach needed here
+
+            it("should parse enums", () => {
+                const mockEnum: EnumDefinition = {
+                    schema: "public",
+                    name: "user_role",
+                    values: ["admin", "user"],
+                };
+
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE TYPE user_role AS ENUM ('admin', 'user');"
+                );
+
+                // Set up all parser mocks
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    mockEnum
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(result.enums).toHaveLength(1);
+                expect(result.enums[0].name).toBe("user_role");
+                expect(logger.log).toHaveBeenCalledWith(
+                    expect.stringContaining("Parsed 1 enum(s)"),
+                    "green"
+                );
+            });
+
+            it("should parse functions", () => {
+                const mockFunction: FunctionDefinition = {
+                    schema: "public",
+                    name: "get_user",
+                    args: [],
+                    returns: "users",
+                };
+
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE FUNCTION get_user() RETURNS users;"
+                );
+
+                // Set up all parser mocks
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    mockFunction
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(result.functions).toHaveLength(1);
+                expect(result.functions[0].name).toBe("get_user");
+                expect(logger.log).toHaveBeenCalledWith(
+                    expect.stringContaining("Parsed 1 function(s)"),
+                    "green"
+                );
+            });
+
+            it("should parse composite types", () => {
+                const mockComposite: CompositeTypeDefinition = {
+                    schema: "public",
+                    name: "address",
+                    attributes: [{ name: "street", type: "text" }],
+                };
+
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE TYPE address AS (street text);"
+                );
+
+                // Set up all parser mocks
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    mockComposite
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(result.compositeTypes).toHaveLength(1);
+                expect(result.compositeTypes[0].name).toBe("address");
+                expect(logger.log).toHaveBeenCalledWith(
+                    expect.stringContaining("Parsed 1 composite type(s)"),
+                    "green"
+                );
+            });
+
+            it("should parse multiple types in one file", () => {
+                const sqlContent = `
+                    CREATE TABLE users (id UUID);
+                    CREATE TYPE role AS ENUM ('admin');
+                    CREATE FUNCTION get_user() RETURNS users;
+                    CREATE TYPE address AS (street text);
+                `;
+
+                vi.mocked(fs.readFileSync).mockReturnValue(sqlContent);
+
+                // Use separate counters for each parser to avoid interference
+                let tableCallCount = 0;
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockImplementation(
+                    () => {
+                        return tableCallCount++ === 0
+                            ? {
+                                  schema: "public",
+                                  name: "users",
+                                  columns: [],
+                                  relationships: [],
+                                  indexes: [],
+                              }
+                            : null;
+                    }
+                );
+
+                let enumCallCount = 0;
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockImplementation(
+                    () => {
+                        return enumCallCount++ === 0
+                            ? {
+                                  schema: "public",
+                                  name: "role",
+                                  values: ["admin"],
+                              }
+                            : null;
+                    }
+                );
+
+                let functionCallCount = 0;
+                vi.spyOn(
+                    sqlParsers,
+                    "parseFunctionDefinition"
+                ).mockImplementation(() => {
+                    return functionCallCount++ === 0
+                        ? {
+                              schema: "public",
+                              name: "get_user",
+                              args: [],
+                              returns: "users",
+                          }
+                        : null;
+                });
+
+                let compositeCallCount = 0;
+                vi.spyOn(sqlParsers, "parseCompositeType").mockImplementation(
+                    () => {
+                        return compositeCallCount++ === 0
+                            ? {
+                                  schema: "public",
+                                  name: "address",
+                                  attributes: [
+                                      { name: "street", type: "text" },
+                                  ],
+                              }
+                            : null;
+                    }
+                );
+
+                // Add missing mocks
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(result.tables).toHaveLength(1);
+                expect(result.enums).toHaveLength(1);
+                expect(result.functions).toHaveLength(1);
+                expect(result.compositeTypes).toHaveLength(1);
+            });
+
+            it("should not log enums when none are parsed", () => {
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE TABLE users (id UUID);"
+                );
+
+                // Set up all parser mocks
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockReturnValue({
+                    schema: "public",
+                    name: "users",
+                    columns: [],
+                    relationships: [],
+                    indexes: [],
+                });
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                const calls = (logger.log as any).mock.calls;
+                const hasEnumLog = calls.some((call: any) =>
+                    call[0].includes("enum(s)")
+                );
+                expect(hasEnumLog).toBe(false);
+            });
+        });
+
+        describe("Index handling", () => {
+            // Note: Individual tests in this suite set up their own mocks
+            // No beforeEach needed here
+
+            it("should attach indexes to tables", () => {
+                const sqlContent = `
+                    CREATE TABLE users (id UUID);
+                    CREATE INDEX idx_users_id ON users(id);
+                `;
+
+                const mockTable: TableDefinition = {
+                    schema: "public",
+                    name: "users",
+                    columns: [],
+                    relationships: [],
+                    indexes: [],
+                };
+
+                const mockIndex: IndexDefinition = {
+                    name: "idx_users_id",
+                    tableName: "users",
+                    columns: ["id"],
+                    isUnique: false,
+                };
+
+                vi.mocked(fs.readFileSync).mockReturnValue(sqlContent);
+
+                let tableCallCount = 0;
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockImplementation(
+                    () => {
+                        return tableCallCount++ === 0 ? mockTable : null;
+                    }
+                );
+
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+
+                let indexCallCount = 0;
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockImplementation(
+                    () => {
+                        return indexCallCount++ === 0 ? mockIndex : null;
+                    }
+                );
+
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(result.tables[0].indexes).toHaveLength(1);
+                expect(result.tables[0].indexes[0].name).toBe("idx_users_id");
+            });
+
+            it("should attach multiple indexes to the same table", () => {
+                const mockTable: TableDefinition = {
+                    schema: "public",
+                    name: "users",
+                    columns: [],
+                    relationships: [],
+                    indexes: [],
+                };
+
+                const mockIndex1: IndexDefinition = {
+                    name: "idx_users_id",
+                    tableName: "users",
+                    columns: ["id"],
+                    isUnique: false,
+                };
+
+                const mockIndex2: IndexDefinition = {
+                    name: "idx_users_email",
+                    tableName: "users",
+                    columns: ["email"],
+                    isUnique: true,
+                };
+
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE TABLE users (id UUID);\n                    CREATE INDEX idx_users_id ON users(id);\n                    CREATE UNIQUE INDEX idx_users_email ON users(email);"
+                );
+
+                vi.spyOn(
+                    sqlParsers,
+                    "parseTableDefinition"
+                ).mockReturnValueOnce(mockTable);
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+
+                vi.spyOn(sqlParsers, "parseIndexDefinition")
+                    .mockReturnValueOnce(mockIndex1)
+                    .mockReturnValueOnce(mockIndex2);
+
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(result.tables[0].indexes).toHaveLength(2);
+            });
+
+            it("should handle tables with no indexes", () => {
+                const mockTable: TableDefinition = {
+                    schema: "public",
+                    name: "users",
+                    columns: [],
+                    relationships: [],
+                    indexes: [],
+                };
+
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE TABLE users (id UUID);"
+                );
+
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockReturnValue(
+                    mockTable
+                );
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(result.tables[0].indexes).toHaveLength(0);
+            });
+        });
+
+        describe("Comment handling", () => {
+            let mockTable: TableDefinition;
+
+            it("should attach table comments when includeComments is true", () => {
+                mockTable = {
+                    schema: "public",
+                    name: "users",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                        {
+                            name: "email",
+                            type: "text",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [],
+                };
+
+                const sqlContent = `
+                    CREATE TABLE users (id UUID);
+                    COMMENT ON TABLE users IS 'User accounts';
+                `;
+
+                vi.mocked(fs.readFileSync).mockReturnValue(sqlContent);
+
+                let tableCallCount = 0;
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockImplementation(
+                    () => {
+                        return tableCallCount++ === 0 ? mockTable : null;
+                    }
+                );
+
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+
+                let tableCommentCallCount = 0;
+                vi.spyOn(sqlParsers, "parseTableComment").mockImplementation(
+                    () => {
+                        return tableCommentCallCount++ === 0
+                            ? {
+                                  tableName: "users",
+                                  comment: "User accounts",
+                                  schema: "public",
+                              }
+                            : null;
+                    }
+                );
+
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(
+                    ["/path/to/schema.sql"],
+                    "public",
+                    true
+                );
+
+                expect(result.tables[0].comment).toBe("User accounts");
+            });
+
+            it("should attach column comments when includeComments is true", () => {
+                mockTable = {
+                    schema: "public",
+                    name: "users",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                        {
+                            name: "email",
+                            type: "text",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [],
+                };
+
+                const sqlContent = `
+                    CREATE TABLE users (id UUID, email TEXT);
+                    COMMENT ON COLUMN users.email IS 'User email address';
+                `;
+
+                vi.mocked(fs.readFileSync).mockReturnValue(sqlContent);
+
+                let tableCallCount = 0;
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockImplementation(
+                    () => {
+                        return tableCallCount++ === 0 ? mockTable : null;
+                    }
+                );
+
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+
+                let columnCommentCallCount = 0;
+                vi.spyOn(sqlParsers, "parseColumnComment").mockImplementation(
+                    () => {
+                        return columnCommentCallCount++ === 0
+                            ? {
+                                  tableName: "users",
+                                  columnName: "email",
+                                  comment: "User email address",
+                                  schema: "public",
+                              }
+                            : null;
+                    }
+                );
+
+                const result = parseSqlFiles(
+                    ["/path/to/schema.sql"],
+                    "public",
+                    true
+                );
+
+                const emailColumn = result.tables[0].columns.find(
+                    (c) => c.name === "email"
+                );
+                expect(emailColumn?.comment).toBe("User email address");
+            });
+
+            it("should not parse comments when includeComments is false", () => {
+                mockTable = {
+                    schema: "public",
+                    name: "users",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                        {
+                            name: "email",
+                            type: "text",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [],
+                };
+
+                const sqlContent = `
+                    CREATE TABLE users (id UUID);
+                    COMMENT ON TABLE users IS 'User accounts';
+                `;
+
+                vi.mocked(fs.readFileSync).mockReturnValue(sqlContent);
+
+                vi.spyOn(sqlParsers, "parseTableDefinition")
+                    .mockReturnValueOnce(mockTable)
+                    .mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+
+                const tableCommentSpy = vi.spyOn(
+                    sqlParsers,
+                    "parseTableComment"
+                );
+                const columnCommentSpy = vi.spyOn(
+                    sqlParsers,
+                    "parseColumnComment"
+                );
+
+                parseSqlFiles(["/path/to/schema.sql"], "public", false);
+
+                expect(tableCommentSpy).not.toHaveBeenCalled();
+                expect(columnCommentSpy).not.toHaveBeenCalled();
+            });
+
+            it("should handle multiple column comments", () => {
+                mockTable = {
+                    schema: "public",
+                    name: "users",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                        {
+                            name: "email",
+                            type: "text",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [],
+                };
+
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE TABLE users (id UUID, email TEXT);\n                    COMMENT ON COLUMN users.id IS 'User ID';\n                    COMMENT ON COLUMN users.email IS 'User email';"
+                );
+
+                let tableCallCount = 0;
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockImplementation(
+                    () => {
+                        return tableCallCount++ === 0 ? mockTable : null;
+                    }
+                );
+
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+
+                let columnCommentCallCount = 0;
+                vi.spyOn(sqlParsers, "parseColumnComment").mockImplementation(
+                    () => {
+                        const count = columnCommentCallCount++;
+                        if (count === 0) {
+                            return {
+                                tableName: "users",
+                                columnName: "id",
+                                comment: "User ID",
+                                schema: "public",
+                            };
+                        } else if (count === 1) {
+                            return {
+                                tableName: "users",
+                                columnName: "email",
+                                comment: "User email",
+                                schema: "public",
+                            };
+                        }
+                        return null;
+                    }
+                );
+
+                const result = parseSqlFiles(
+                    ["/path/to/schema.sql"],
+                    "public",
+                    true
+                );
+
+                expect(result.tables[0].columns[0].comment).toBe("User ID");
+                expect(result.tables[0].columns[1].comment).toBe("User email");
+            });
+        });
+
+        describe("ALTER TABLE handling", () => {
+            let mockTable: TableDefinition;
+
+            // Note: Individual tests modify mockTable as needed and set up their own mocks
+
+            it("should apply ALTER TABLE UNIQUE constraints", () => {
+                mockTable = {
+                    schema: "public",
+                    name: "posts",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                        {
+                            name: "user_id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                        {
+                            name: "email",
+                            type: "text",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [],
+                };
+
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE TABLE posts (email TEXT);\n                    ALTER TABLE posts ADD CONSTRAINT posts_email_unique UNIQUE (email);"
+                );
+
+                let tableCallCount = 0;
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockImplementation(
+                    () => {
+                        return tableCallCount++ === 0 ? mockTable : null;
+                    }
+                );
+
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+
+                let alterUniqueCallCount = 0;
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableUnique"
+                ).mockImplementation(() => {
+                    return alterUniqueCallCount++ === 0
+                        ? {
+                              tableName: "posts",
+                              columns: ["email"],
+                          }
+                        : null;
+                });
+
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                const emailColumn = result.tables[0].columns.find(
+                    (c) => c.name === "email"
+                );
+                expect(emailColumn?.isUnique).toBe(true);
+            });
+
+            it("should apply multiple ALTER TABLE UNIQUE constraints", () => {
+                mockTable = {
+                    schema: "public",
+                    name: "posts",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                        {
+                            name: "user_id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                        {
+                            name: "email",
+                            type: "text",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [],
+                };
+
+                mockTable.columns.push({
+                    name: "username",
+                    type: "text",
+                    nullable: false,
+                    defaultValue: null,
+                    isArray: false,
+                    isPrimaryKey: false,
+                    isUnique: false,
+                });
+
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE TABLE posts (email TEXT, username TEXT);\n                    ALTER TABLE posts ADD CONSTRAINT posts_email_unique UNIQUE (email);\n                    ALTER TABLE posts ADD CONSTRAINT posts_username_unique UNIQUE (username);"
+                );
+
+                let tableCallCount = 0;
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockImplementation(
+                    () => {
+                        return tableCallCount++ === 0 ? mockTable : null;
+                    }
+                );
+
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+
+                let alterUniqueCallCount = 0;
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableUnique"
+                ).mockImplementation(() => {
+                    const count = alterUniqueCallCount++;
+                    if (count === 0) {
+                        return {
+                            tableName: "posts",
+                            columns: ["email"],
+                        };
+                    } else if (count === 1) {
+                        return {
+                            tableName: "posts",
+                            columns: ["username"],
+                        };
+                    }
+                    return null;
+                });
+
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                const emailColumn = result.tables[0].columns.find(
+                    (c) => c.name === "email"
+                );
+                const usernameColumn = result.tables[0].columns.find(
+                    (c) => c.name === "username"
+                );
+                expect(emailColumn?.isUnique).toBe(true);
+                expect(usernameColumn?.isUnique).toBe(true);
+            });
+
+            it("should attach ALTER TABLE foreign keys", () => {
+                mockTable = {
+                    schema: "public",
+                    name: "posts",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                        {
+                            name: "user_id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                        {
+                            name: "email",
+                            type: "text",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [],
+                };
+
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE TABLE posts (user_id UUID, email TEXT);\n                    ALTER TABLE posts ADD CONSTRAINT posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);"
+                );
+
+                let tableCallCount = 0;
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockImplementation(
+                    () => {
+                        return tableCallCount++ === 0 ? mockTable : null;
+                    }
+                );
+
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+
+                let alterFKCallCount = 0;
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockImplementation(() => {
+                    return alterFKCallCount++ === 0
+                        ? {
+                              tableName: "posts",
+                              relationship: {
+                                  foreignKeyName: "posts_user_id_fkey",
+                                  columns: ["user_id"],
+                                  isOneToOne: false,
+                                  referencedRelation: "users",
+                                  referencedColumns: ["id"],
+                              },
+                          }
+                        : null;
+                });
+
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(result.tables[0].relationships).toHaveLength(1);
+                expect(result.tables[0].relationships[0].foreignKeyName).toBe(
+                    "posts_user_id_fkey"
+                );
+            });
+
+            it("should detect one-to-one relationships when column is unique", () => {
+                mockTable = {
+                    schema: "public",
+                    name: "posts",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                        {
+                            name: "user_id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: true, // Make unique for this test
+                        },
+                        {
+                            name: "email",
+                            type: "text",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [],
+                };
+
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE TABLE posts (id UUID PRIMARY KEY, user_id UUID UNIQUE, email TEXT);\n                    ALTER TABLE posts ADD CONSTRAINT posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);"
+                );
+
+                let tableCallCount = 0;
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockImplementation(
+                    () => {
+                        return tableCallCount++ === 0 ? mockTable : null;
+                    }
+                );
+
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+
+                let alterFKCallCount = 0;
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockImplementation(() => {
+                    return alterFKCallCount++ === 0
+                        ? {
+                              tableName: "posts",
+                              relationship: {
+                                  foreignKeyName: "posts_user_id_fkey",
+                                  columns: ["user_id"],
+                                  isOneToOne: false,
+                                  referencedRelation: "users",
+                                  referencedColumns: ["id"],
+                              },
+                          }
+                        : null;
+                });
+
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(result.tables[0].relationships[0].isOneToOne).toBe(true);
+            });
+
+            it("should detect one-to-one relationships when column is primary key", () => {
+                mockTable = {
+                    schema: "public",
+                    name: "posts",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                        {
+                            name: "user_id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true, // Make primary key for this test
+                            isUnique: false,
+                        },
+                        {
+                            name: "email",
+                            type: "text",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [],
+                };
+
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE TABLE posts (id UUID, user_id UUID PRIMARY KEY, email TEXT);\n                    ALTER TABLE posts ADD CONSTRAINT posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);"
+                );
+
+                let tableCallCount = 0;
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockImplementation(
+                    () => {
+                        return tableCallCount++ === 0 ? mockTable : null;
+                    }
+                );
+
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+
+                let alterFKCallCount = 0;
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockImplementation(() => {
+                    return alterFKCallCount++ === 0
+                        ? {
+                              tableName: "posts",
+                              relationship: {
+                                  foreignKeyName: "posts_user_id_fkey",
+                                  columns: ["user_id"],
+                                  isOneToOne: false,
+                                  referencedRelation: "users",
+                                  referencedColumns: ["id"],
+                              },
+                          }
+                        : null;
+                });
+
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(result.tables[0].relationships[0].isOneToOne).toBe(true);
+            });
+
+            it("should detect one-to-one relationships when unique index exists", () => {
+                mockTable = {
+                    schema: "public",
+                    name: "posts",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                        {
+                            name: "user_id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                        {
+                            name: "email",
+                            type: "text",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [
+                        {
+                            name: "idx_posts_user_id",
+                            tableName: "posts",
+                            columns: ["user_id"],
+                            isUnique: true,
+                        },
+                    ],
+                };
+
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE TABLE posts (id UUID PRIMARY KEY, user_id UUID, email TEXT);\n                    CREATE UNIQUE INDEX idx_posts_user_id ON posts(user_id);\n                    ALTER TABLE posts ADD CONSTRAINT posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);"
+                );
+
+                let tableCallCount = 0;
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockImplementation(
+                    () => {
+                        return tableCallCount++ === 0 ? mockTable : null;
+                    }
+                );
+
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                let indexCallCount = 0;
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockImplementation(
+                    () => {
+                        return indexCallCount++ === 0
+                            ? {
+                                  name: "idx_posts_user_id",
+                                  tableName: "posts",
+                                  columns: ["user_id"],
+                                  isUnique: true,
+                              }
+                            : null;
+                    }
+                );
+
+                let alterFKCallCount = 0;
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockImplementation(() => {
+                    return alterFKCallCount++ === 0
+                        ? {
+                              tableName: "posts",
+                              relationship: {
+                                  foreignKeyName: "posts_user_id_fkey",
+                                  columns: ["user_id"],
+                                  isOneToOne: false,
+                                  referencedRelation: "users",
+                                  referencedColumns: ["id"],
+                              },
+                          }
+                        : null;
+                });
+
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(result.tables[0].relationships[0].isOneToOne).toBe(true);
+            });
+
+            it("should not detect one-to-one when multi-column foreign key", () => {
+                mockTable = {
+                    schema: "public",
+                    name: "posts",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                        {
+                            name: "user_id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                        {
+                            name: "email",
+                            type: "text",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [],
+                };
+
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE TABLE posts (id UUID PRIMARY KEY, user_id UUID, email TEXT);\n                    ALTER TABLE posts ADD CONSTRAINT posts_fkey FOREIGN KEY (user_id, email) REFERENCES users(id, email);"
+                );
+
+                let tableCallCount = 0;
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockImplementation(
+                    () => {
+                        return tableCallCount++ === 0 ? mockTable : null;
+                    }
+                );
+
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+
+                let alterFKCallCount = 0;
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockImplementation(() => {
+                    return alterFKCallCount++ === 0
+                        ? {
+                              tableName: "posts",
+                              relationship: {
+                                  foreignKeyName: "posts_fkey",
+                                  columns: ["user_id", "email"],
+                                  isOneToOne: false,
+                                  referencedRelation: "users",
+                                  referencedColumns: ["id", "email"],
+                              },
+                          }
+                        : null;
+                });
+
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(result.tables[0].relationships[0].isOneToOne).toBe(
+                    false
+                );
+            });
+
+            it("should not detect one-to-one when unique index has multiple columns", () => {
+                mockTable = {
+                    schema: "public",
+                    name: "posts",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                        {
+                            name: "user_id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                        {
+                            name: "email",
+                            type: "text",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [
+                        {
+                            name: "idx_posts_composite",
+                            tableName: "posts",
+                            columns: ["user_id", "email"],
+                            isUnique: true,
+                        },
+                    ],
+                };
+
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE TABLE posts (id UUID PRIMARY KEY, user_id UUID, email TEXT);\n                    CREATE UNIQUE INDEX idx_posts_composite ON posts(user_id, email);\n                    ALTER TABLE posts ADD CONSTRAINT posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);"
+                );
+
+                let tableCallCount = 0;
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockImplementation(
+                    () => {
+                        return tableCallCount++ === 0 ? mockTable : null;
+                    }
+                );
+
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                let indexCallCount = 0;
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockImplementation(
+                    () => {
+                        return indexCallCount++ === 0
+                            ? {
+                                  name: "idx_posts_composite",
+                                  tableName: "posts",
+                                  columns: ["user_id", "email"],
+                                  isUnique: true,
+                              }
+                            : null;
+                    }
+                );
+
+                let alterFKCallCount = 0;
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockImplementation(() => {
+                    return alterFKCallCount++ === 0
+                        ? {
+                              tableName: "posts",
+                              relationship: {
+                                  foreignKeyName: "posts_user_id_fkey",
+                                  columns: ["user_id"],
+                                  isOneToOne: false,
+                                  referencedRelation: "users",
+                                  referencedColumns: ["id"],
+                              },
+                          }
+                        : null;
+                });
+
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseTableComment").mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
+                    null
+                );
+
+                const result = parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(result.tables[0].relationships[0].isOneToOne).toBe(
+                    false
+                );
+            });
+        });
+
+        describe("Error handling", () => {
+            beforeEach(() => {
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+            });
+
+            it("should handle file read errors", () => {
+                vi.mocked(fs.readFileSync).mockImplementation(() => {
+                    throw new Error("File not found");
+                });
+
+                const result = parseSqlFiles(
+                    ["/path/to/missing.sql"],
+                    "public"
+                );
+
+                expect(result.tables).toHaveLength(0);
+                expect(logger.log).toHaveBeenCalledWith(
+                    expect.stringContaining("Error parsing"),
+                    "red"
+                );
+                expect(logger.log).toHaveBeenCalledWith(
+                    expect.stringContaining("File not found"),
+                    "red"
+                );
+            });
+
+            it("should continue parsing other files after an error", () => {
+                vi.mocked(fs.readFileSync)
+                    .mockImplementationOnce(() => {
+                        throw new Error("File error");
+                    })
+                    .mockReturnValueOnce("CREATE TABLE users (id UUID);");
+
+                let tableCallCount = 0;
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockImplementation(
+                    () => {
+                        return tableCallCount++ === 0
+                            ? {
+                                  schema: "public",
+                                  name: "users",
+                                  columns: [],
+                                  relationships: [],
+                                  indexes: [],
+                              }
+                            : null;
+                    }
+                );
+
+                const result = parseSqlFiles(
+                    ["/path/to/error.sql", "/path/to/valid.sql"],
+                    "public"
+                );
+
+                expect(result.tables).toHaveLength(1);
+            });
+
+            it("should handle non-Error objects", () => {
+                vi.mocked(fs.readFileSync).mockImplementation(() => {
+                    throw "String error";
+                });
+
+                const result = parseSqlFiles(["/path/to/error.sql"], "public");
+
+                expect(logger.log).toHaveBeenCalledWith(
+                    expect.stringContaining("String error"),
+                    "red"
+                );
+            });
+        });
+
+        describe("Schema parameter", () => {
+            it("should pass schema to all parsers", () => {
+                vi.mocked(fs.readFileSync).mockReturnValue(
+                    "CREATE TABLE users (id UUID);"
+                );
+
+                const tableDefSpy = vi
+                    .spyOn(sqlParsers, "parseTableDefinition")
+                    .mockReturnValue(null);
+                const enumDefSpy = vi
+                    .spyOn(sqlParsers, "parseEnumDefinition")
+                    .mockReturnValue(null);
+                const funcDefSpy = vi
+                    .spyOn(sqlParsers, "parseFunctionDefinition")
+                    .mockReturnValue(null);
+                const compositeDefSpy = vi
+                    .spyOn(sqlParsers, "parseCompositeType")
+                    .mockReturnValue(null);
+                const indexDefSpy = vi
+                    .spyOn(sqlParsers, "parseIndexDefinition")
+                    .mockReturnValue(null);
+                const alterFKSpy = vi
+                    .spyOn(sqlParsers, "parseAlterTableForeignKey")
+                    .mockReturnValue(null);
+                const alterUniqueSpy = vi
+                    .spyOn(sqlParsers, "parseAlterTableUnique")
+                    .mockReturnValue(null);
+
+                parseSqlFiles(["/path/to/schema.sql"], "custom_schema");
+
+                expect(tableDefSpy).toHaveBeenCalledWith(
+                    expect.any(String),
+                    "custom_schema"
+                );
+                expect(enumDefSpy).toHaveBeenCalledWith(
+                    expect.any(String),
+                    "custom_schema"
+                );
+                expect(funcDefSpy).toHaveBeenCalledWith(
+                    expect.any(String),
+                    "custom_schema"
+                );
+                expect(compositeDefSpy).toHaveBeenCalledWith(
+                    expect.any(String),
+                    "custom_schema"
+                );
+                expect(indexDefSpy).toHaveBeenCalledWith(
+                    expect.any(String),
+                    "custom_schema"
+                );
+                expect(alterFKSpy).toHaveBeenCalledWith(
+                    expect.any(String),
+                    "custom_schema"
+                );
+                expect(alterUniqueSpy).toHaveBeenCalledWith(
+                    expect.any(String),
+                    "custom_schema"
+                );
+            });
+        });
+
+        describe("Logging", () => {
+            beforeEach(() => {
+                vi.spyOn(sqlParsers, "parseTableDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseEnumDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseFunctionDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseCompositeType").mockReturnValue(
+                    null
+                );
+                vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
+                    null
+                );
+                vi.spyOn(
+                    sqlParsers,
+                    "parseAlterTableForeignKey"
+                ).mockReturnValue(null);
+                vi.spyOn(sqlParsers, "parseAlterTableUnique").mockReturnValue(
+                    null
+                );
+            });
+
+            it("should log step header", () => {
+                vi.mocked(fs.readFileSync).mockReturnValue("");
+
+                parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(logger.log).toHaveBeenCalledWith(
+                    expect.stringContaining("Step 1: Parsing SQL schema files"),
+                    "bright"
+                );
+            });
+
+            it("should log file processing", () => {
+                vi.mocked(fs.readFileSync).mockReturnValue("");
+
+                parseSqlFiles(["/path/to/migrations/001_init.sql"], "public");
+
+                expect(logger.log).toHaveBeenCalledWith(
+                    expect.stringContaining("Processing: 001_init.sql"),
+                    "cyan"
+                );
+            });
+
+            it("should log parsed counts", () => {
+                vi.mocked(fs.readFileSync).mockReturnValue("");
+
+                parseSqlFiles(["/path/to/schema.sql"], "public");
+
+                expect(logger.log).toHaveBeenCalledWith(
+                    expect.stringContaining("Parsed 0 table(s)"),
+                    "green"
+                );
+            });
+        });
+    });
+});

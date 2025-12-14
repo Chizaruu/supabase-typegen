@@ -63,6 +63,9 @@ export function parseSqlFiles(
                 ? new Map<string, Map<string, string>>()
                 : null;
 
+            // Track tables added in this file for comment attachment
+            const tablesAddedInThisFile: TableDefinition[] = [];
+
             for (const statement of statements) {
                 const trimmed = statement.trim();
                 if (!trimmed) continue;
@@ -70,6 +73,7 @@ export function parseSqlFiles(
                 const table = parseTableDefinition(trimmed, schema);
                 if (table) {
                     tables.push(table);
+                    tablesAddedInThisFile.push(table);
                     continue;
                 }
 
@@ -141,9 +145,9 @@ export function parseSqlFiles(
                 }
             }
 
-            // Attach comments to tables and columns
+            // Attach comments to tables added in THIS file only
             if (includeComments && tableComments && columnComments) {
-                for (const table of tables) {
+                for (const table of tablesAddedInThisFile) {
                     const tableComment = tableComments.get(table.name);
                     if (tableComment) {
                         table.comment = tableComment;

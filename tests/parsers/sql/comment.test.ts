@@ -1,136 +1,313 @@
 /**
- * Tests for index definition parser
+ * Tests for comment statement parser
  */
 
 import { describe, it, expect } from "vitest";
-import { parseIndexDefinition } from "../../../src/parsers/sql/index.ts";
+import {
+    parseTableComment,
+    parseColumnComment,
+} from "../../../src/parsers/sql/comment.ts";
 
-describe("parseIndexDefinition", () => {
-    it("should parse basic index", () => {
-        const sql = `create index idx_users_email on users(email)`;
-        const result = parseIndexDefinition(sql);
+describe("parseTableComment", () => {
+    it("should parse basic table comment", () => {
+        const sql = "COMMENT ON TABLE users IS 'User accounts';";
+        const result = parseTableComment(sql);
 
         expect(result).toBeTruthy();
-        expect(result!.name).toBe("idx_users_email");
         expect(result!.tableName).toBe("users");
-        expect(result!.columns).toEqual(["email"]);
-        expect(result!.isUnique).toBe(false);
+        expect(result!.comment).toBe("User accounts");
+        expect(result!.schema).toBe("public");
     });
 
-    it("should parse unique index", () => {
-        const sql = `create unique index idx_unique_email on users(email)`;
-        const result = parseIndexDefinition(sql);
-
-        expect(result).toBeTruthy();
-        expect(result!.isUnique).toBe(true);
-    });
-
-    it("should parse index with multiple columns", () => {
-        const sql = `create index idx_user_name on users(first_name, last_name)`;
-        const result = parseIndexDefinition(sql);
-
-        expect(result!.columns).toEqual(["first_name", "last_name"]);
-    });
-
-    it("should parse index with USING clause", () => {
-        const sql = `create index idx_users_data on users using gin(data)`;
-        const result = parseIndexDefinition(sql);
-
-        expect(result).toBeTruthy();
-        expect(result!.method).toBe("gin");
-    });
-
-    it("should parse index with btree method", () => {
-        const sql = `create index idx_users_id on users using btree(id)`;
-        const result = parseIndexDefinition(sql);
-
-        expect(result!.method).toBe("btree");
-    });
-
-    it("should parse index with WHERE clause", () => {
-        const sql = `create index idx_active_users on users(email) where active = true`;
-        const result = parseIndexDefinition(sql);
-
-        expect(result).toBeTruthy();
-        expect(result!.whereClause).toBe("active = true");
-    });
-
-    it("should parse index with complex WHERE clause", () => {
-        const sql = `create index idx_recent_posts on posts(created_at) where created_at > '2024-01-01' and published = true`;
-        const result = parseIndexDefinition(sql);
-
-        expect(result!.whereClause).toBe(
-            "created_at > '2024-01-01' and published = true"
-        );
-    });
-
-    it("should parse if not exists index", () => {
-        const sql = `create index if not exists idx_users_email on users(email)`;
-        const result = parseIndexDefinition(sql);
-
-        expect(result).toBeTruthy();
-        expect(result!.name).toBe("idx_users_email");
-    });
-
-    it("should parse index with quoted names", () => {
-        const sql = `create index "idx-users-email" on "users"("email")`;
-        const result = parseIndexDefinition(sql);
-
-        expect(result).toBeTruthy();
-        expect(result!.name).toBe("idx-users-email");
-        expect(result!.tableName).toBe("users");
-    });
-
-    it("should parse index with schema-qualified table", () => {
-        const sql = `create index idx_auth_users on auth.users(email)`;
-        const result = parseIndexDefinition(sql);
+    it("should parse table comment with lowercase", () => {
+        const sql = "comment on table users is 'User accounts';";
+        const result = parseTableComment(sql);
 
         expect(result).toBeTruthy();
         expect(result!.tableName).toBe("users");
     });
 
-    it("should return null for invalid SQL", () => {
-        const sql = "not an index definition";
-        const result = parseIndexDefinition(sql);
+    it("should parse table comment with schema prefix", () => {
+        const sql = "COMMENT ON TABLE myschema.users IS 'User accounts';";
+        const result = parseTableComment(sql);
+
+        expect(result).toBeTruthy();
+        expect(result!.schema).toBe("myschema");
+    });
+
+    it("should use custom schema parameter", () => {
+        const sql = "COMMENT ON TABLE users IS 'User accounts';";
+        const result = parseTableComment(sql, "custom");
+
+        expect(result!.schema).toBe("custom");
+    });
+
+    it("should prefer SQL schema over parameter", () => {
+        const sql = "COMMENT ON TABLE myschema.users IS 'User accounts';";
+        const result = parseTableComment(sql, "custom");
+
+        expect(result!.schema).toBe("myschema");
+    });
+
+    it("should parse table comment with quoted table name", () => {
+        const sql = "COMMENT ON TABLE \"users\" IS 'User accounts';";
+        const result = parseTableComment(sql);
+
+        expect(result).toBeTruthy();
+        expect(result!.tableName).toBe("users");
+    });
+
+    it("should parse table comment with quoted schema", () => {
+        const sql = "COMMENT ON TABLE \"myschema\".users IS 'User accounts';";
+        const result = parseTableComment(sql);
+
+        expect(result!.schema).toBe("myschema");
+    });
+
+    it("should parse comment with special characters", () => {
+        const sql = "COMMENT ON TABLE users IS 'User''s accounts & data!';";
+        const result = parseTableComment(sql);
+
+        expect(result!.comment).toBe("User's accounts & data!");
+    });
+
+    it("should parse comment with multiple escaped quotes", () => {
+        const sql = "COMMENT ON TABLE users IS 'It''s the user''s data';";
+        const result = parseTableComment(sql);
+
+        expect(result!.comment).toBe("It's the user's data");
+    });
+
+    it("should parse empty comment", () => {
+        const sql = "COMMENT ON TABLE users IS '';";
+        const result = parseTableComment(sql);
+
+        expect(result).toBeTruthy();
+        expect(result!.comment).toBe("");
+    });
+
+    it("should parse comment with numbers", () => {
+        const sql = "COMMENT ON TABLE users IS 'Created in 2024';";
+        const result = parseTableComment(sql);
+
+        expect(result!.comment).toBe("Created in 2024");
+    });
+
+    it("should parse comment with extra whitespace", () => {
+        const sql = "COMMENT   ON   TABLE   users   IS   'User accounts';";
+        const result = parseTableComment(sql);
+
+        expect(result).toBeTruthy();
+    });
+
+    it("should parse comment with newlines", () => {
+        const sql = `COMMENT ON TABLE
+            users
+            IS 'User accounts';`;
+        const result = parseTableComment(sql);
+
+        expect(result).toBeTruthy();
+    });
+
+    it("should return null for non-comment SQL", () => {
+        const sql = "CREATE TABLE users (id UUID);";
+        const result = parseTableComment(sql);
 
         expect(result).toBeNull();
     });
 
-    it("should parse index with hash method", () => {
-        const sql = `create index idx_users_id on users using hash(id)`;
-        const result = parseIndexDefinition(sql);
+    it("should return null for column comment", () => {
+        const sql = "COMMENT ON COLUMN users.email IS 'Email';";
+        const result = parseTableComment(sql);
 
-        expect(result!.method).toBe("hash");
+        expect(result).toBeNull();
     });
 
-    it("should parse index with gist method", () => {
-        const sql = `create index idx_locations on locations using gist(coordinates)`;
-        const result = parseIndexDefinition(sql);
+    it("should return null for empty string", () => {
+        const result = parseTableComment("");
 
-        expect(result!.method).toBe("gist");
+        expect(result).toBeNull();
     });
 
-    it("should handle expression-based index columns", () => {
-        const sql = `create index idx_users_lower_email on users(lower(email))`;
-        const result = parseIndexDefinition(sql);
+    it("should return null for malformed syntax", () => {
+        const sql = "COMMENT ON TABLE users;";
+        const result = parseTableComment(sql);
+
+        expect(result).toBeNull();
+    });
+
+    it("should return null without IS keyword", () => {
+        const sql = "COMMENT ON TABLE users 'User accounts';";
+        const result = parseTableComment(sql);
+
+        expect(result).toBeNull();
+    });
+});
+
+describe("parseColumnComment", () => {
+    it("should parse basic column comment", () => {
+        const sql = "COMMENT ON COLUMN users.email IS 'Email address';";
+        const result = parseColumnComment(sql);
 
         expect(result).toBeTruthy();
-        expect(result!.columns).toContain("lower(email)");
+        expect(result!.tableName).toBe("users");
+        expect(result!.columnName).toBe("email");
+        expect(result!.comment).toBe("Email address");
+        expect(result!.schema).toBe("public");
     });
 
-    it("should handle concurrent index creation", () => {
-        const sql = `create index concurrently idx_users_email on users(email)`;
-        const result = parseIndexDefinition(sql);
+    it("should parse column comment with lowercase", () => {
+        const sql = "comment on column users.email is 'Email address';";
+        const result = parseColumnComment(sql);
 
         expect(result).toBeTruthy();
-        expect(result!.name).toBe("idx_users_email");
+        expect(result!.columnName).toBe("email");
     });
 
-    it("should parse unique index with where clause", () => {
-        const sql = `create unique index idx_active_emails on users(email) where active = true`;
-        const result = parseIndexDefinition(sql);
+    it("should parse column comment with schema prefix", () => {
+        const sql =
+            "COMMENT ON COLUMN myschema.users.email IS 'Email address';";
+        const result = parseColumnComment(sql);
 
-        expect(result!.isUnique).toBe(true);
-        expect(result!.whereClause).toBe("active = true");
+        expect(result).toBeTruthy();
+        expect(result!.schema).toBe("myschema");
+    });
+
+    it("should use custom schema parameter", () => {
+        const sql = "COMMENT ON COLUMN users.email IS 'Email address';";
+        const result = parseColumnComment(sql, "custom");
+
+        expect(result!.schema).toBe("custom");
+    });
+
+    it("should prefer SQL schema over parameter", () => {
+        const sql =
+            "COMMENT ON COLUMN myschema.users.email IS 'Email address';";
+        const result = parseColumnComment(sql, "custom");
+
+        expect(result!.schema).toBe("myschema");
+    });
+
+    it("should parse column comment with quoted table", () => {
+        const sql = "COMMENT ON COLUMN \"users\".email IS 'Email address';";
+        const result = parseColumnComment(sql);
+
+        expect(result).toBeTruthy();
+        expect(result!.tableName).toBe("users");
+    });
+
+    it("should parse column comment with quoted column", () => {
+        const sql = "COMMENT ON COLUMN users.\"email\" IS 'Email address';";
+        const result = parseColumnComment(sql);
+
+        expect(result!.columnName).toBe("email");
+    });
+
+    it("should parse column comment with all quoted", () => {
+        const sql =
+            'COMMENT ON COLUMN "myschema"."users"."email" IS \'Email address\';';
+        const result = parseColumnComment(sql);
+
+        expect(result!.schema).toBe("myschema");
+        expect(result!.tableName).toBe("users");
+        expect(result!.columnName).toBe("email");
+    });
+
+    it("should parse comment with special characters", () => {
+        const sql = "COMMENT ON COLUMN users.email IS 'User''s email & info!';";
+        const result = parseColumnComment(sql);
+
+        expect(result!.comment).toBe("User's email & info!");
+    });
+
+    it("should parse comment with multiple escaped quotes", () => {
+        const sql =
+            "COMMENT ON COLUMN users.email IS 'It''s the user''s email';";
+        const result = parseColumnComment(sql);
+
+        expect(result!.comment).toBe("It's the user's email");
+    });
+
+    it("should parse empty comment", () => {
+        const sql = "COMMENT ON COLUMN users.email IS '';";
+        const result = parseColumnComment(sql);
+
+        expect(result).toBeTruthy();
+        expect(result!.comment).toBe("");
+    });
+
+    it("should parse comment with numbers", () => {
+        const sql = "COMMENT ON COLUMN users.id IS 'ID in format 123';";
+        const result = parseColumnComment(sql);
+
+        expect(result!.comment).toBe("ID in format 123");
+    });
+
+    it("should parse comment with extra whitespace", () => {
+        const sql = "COMMENT   ON   COLUMN   users.email   IS   'Email';";
+        const result = parseColumnComment(sql);
+
+        expect(result).toBeTruthy();
+    });
+
+    it("should parse comment with newlines", () => {
+        const sql = `COMMENT ON COLUMN
+            users.email
+            IS 'Email address';`;
+        const result = parseColumnComment(sql);
+
+        expect(result).toBeTruthy();
+    });
+
+    it("should parse various column names", () => {
+        const sql1 = "COMMENT ON COLUMN users.user_id IS 'ID';";
+        expect(parseColumnComment(sql1)!.columnName).toBe("user_id");
+
+        const sql2 = "COMMENT ON COLUMN users.createdAt IS 'Date';";
+        expect(parseColumnComment(sql2)!.columnName).toBe("createdAt");
+
+        const sql3 = "COMMENT ON COLUMN users.data123 IS 'Data';";
+        expect(parseColumnComment(sql3)!.columnName).toBe("data123");
+    });
+
+    it("should return null for non-comment SQL", () => {
+        const sql = "CREATE TABLE users (id UUID);";
+        const result = parseColumnComment(sql);
+
+        expect(result).toBeNull();
+    });
+
+    it("should return null for table comment", () => {
+        const sql = "COMMENT ON TABLE users IS 'User accounts';";
+        const result = parseColumnComment(sql);
+
+        expect(result).toBeNull();
+    });
+
+    it("should return null for empty string", () => {
+        const result = parseColumnComment("");
+
+        expect(result).toBeNull();
+    });
+
+    it("should return null for malformed syntax", () => {
+        const sql = "COMMENT ON COLUMN users.email;";
+        const result = parseColumnComment(sql);
+
+        expect(result).toBeNull();
+    });
+
+    it("should return null without IS keyword", () => {
+        const sql = "COMMENT ON COLUMN users.email 'Email';";
+        const result = parseColumnComment(sql);
+
+        expect(result).toBeNull();
+    });
+
+    it("should return null without column name", () => {
+        const sql = "COMMENT ON COLUMN users IS 'Comment';";
+        const result = parseColumnComment(sql);
+
+        expect(result).toBeNull();
     });
 });
