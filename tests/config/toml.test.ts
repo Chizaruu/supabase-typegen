@@ -100,6 +100,57 @@ schema_paths = [
             ]);
         });
 
+        it("should parse multi-line array with items on opening line (no closing bracket)", () => {
+            const content = `
+[db.migrations]
+schema_paths = ["migrations/001_init.sql",
+    "migrations/002_users.sql",
+    "migrations/003_posts.sql"
+]
+            `;
+            const result = parseToml(content);
+
+            expect(result.db?.migrations?.schema_paths).toEqual([
+                "migrations/001_init.sql",
+                "migrations/002_users.sql",
+                "migrations/003_posts.sql",
+            ]);
+        });
+
+        it("should parse multi-line array with items on closing line", () => {
+            const content = `
+[db.migrations]
+schema_paths = [
+    "migrations/001_init.sql",
+    "migrations/002_users.sql", "migrations/003_posts.sql"]
+            `;
+            const result = parseToml(content);
+
+            expect(result.db?.migrations?.schema_paths).toEqual([
+                "migrations/001_init.sql",
+                "migrations/002_users.sql",
+                "migrations/003_posts.sql",
+            ]);
+        });
+
+        it("should parse multi-line array with multiple items per line", () => {
+            const content = `
+[db.migrations]
+schema_paths = ["migrations/001_init.sql", "migrations/002_users.sql",
+    "migrations/003_posts.sql", "migrations/004_comments.sql",
+    "migrations/005_tags.sql"]
+            `;
+            const result = parseToml(content);
+
+            expect(result.db?.migrations?.schema_paths).toEqual([
+                "migrations/001_init.sql",
+                "migrations/002_users.sql",
+                "migrations/003_posts.sql",
+                "migrations/004_comments.sql",
+                "migrations/005_tags.sql",
+            ]);
+        });
+
         it("should ignore comments in TOML", () => {
             const content = `
 # Configuration file

@@ -309,4 +309,123 @@ describe("parseCommandLineArgs", () => {
             delete process.env.DATABASE_URL;
         }
     });
+
+    it("should parse --local flag without workdir argument", () => {
+        process.argv = ["node", "script.ts", "--local"];
+        const result = parseCommandLineArgs();
+
+        expect(result.useLocal).toBe(true);
+    });
+
+    it("should parse --local flag with workdir argument", () => {
+        process.argv = ["node", "script.ts", "--local", "./my-supabase"];
+        const result = parseCommandLineArgs();
+
+        expect(result.useLocal).toBe(true);
+        expect(result.workdir).toBe("./my-supabase");
+        expect(result.useWorkdir).toBe(false);
+    });
+
+    it("should parse --local flag followed by another flag", () => {
+        process.argv = ["node", "script.ts", "--local", "--schema", "custom"];
+        const result = parseCommandLineArgs();
+
+        expect(result.useLocal).toBe(true);
+        expect(result.schema).toBe("custom");
+    });
+
+    it("should handle positional workdir argument", () => {
+        process.argv = ["node", "script.ts", "./custom-path"];
+        const result = parseCommandLineArgs();
+
+        expect(result.workdir).toBe("./custom-path");
+        expect(result.useWorkdir).toBe(false);
+    });
+
+    it("should handle multiple positional arguments (last one wins)", () => {
+        process.argv = ["node", "script.ts", "./path1", "./path2"];
+        const result = parseCommandLineArgs();
+
+        expect(result.workdir).toBe("./path2");
+    });
+
+    it("should handle invalid naming convention", () => {
+        process.argv = ["node", "script.ts", "--naming", "invalid-convention"];
+        const result = parseCommandLineArgs();
+
+        // Verify the warning was logged
+        expect(logger.log).toHaveBeenCalledWith(
+            expect.stringContaining(
+                "Invalid naming convention: invalid-convention"
+            ),
+            "yellow",
+            true
+        );
+
+        expect(result.namingConvention).toBe("preserve");
+    });
+
+    it("should parse --dedupe alias for deduplicate", () => {
+        process.argv = ["node", "script.ts", "--dedupe"];
+        const result = parseCommandLineArgs();
+
+        expect(result.deduplicateTypes).toBe(true);
+    });
+
+    it("should parse --dedupe-types alias for deduplicate", () => {
+        process.argv = ["node", "script.ts", "--dedupe-types"];
+        const result = parseCommandLineArgs();
+
+        expect(result.deduplicateTypes).toBe(true);
+    });
+
+    it("should parse --no-dedupe alias for no-deduplicate", () => {
+        process.argv = ["node", "script.ts", "--no-dedupe"];
+        const result = parseCommandLineArgs();
+
+        expect(result.deduplicateTypes).toBe(false);
+    });
+
+    it("should parse --indexes alias for include-indexes", () => {
+        process.argv = ["node", "script.ts", "--indexes"];
+        const result = parseCommandLineArgs();
+
+        expect(result.includeIndexes).toBe(true);
+    });
+
+    it("should parse --sort-alphabetical alias", () => {
+        process.argv = ["node", "script.ts", "--sort-alphabetical"];
+        const result = parseCommandLineArgs();
+
+        expect(result.alphabetical).toBe(true);
+    });
+
+    it("should parse --naming-convention alias", () => {
+        process.argv = [
+            "node",
+            "script.ts",
+            "--naming-convention",
+            "PascalCase",
+        ];
+        const result = parseCommandLineArgs();
+
+        expect(result.namingConvention).toBe("PascalCase");
+    });
+
+    it("should handle mixed positional and flag arguments", () => {
+        process.argv = [
+            "node",
+            "script.ts",
+            "./custom-workdir",
+            "--schema",
+            "custom",
+            "--alphabetical",
+        ];
+
+        const result = parseCommandLineArgs();
+
+        expect(result.workdir).toBe("./custom-workdir");
+        expect(result.schema).toBe("custom");
+        expect(result.alphabetical).toBe(true);
+    });
 });
