@@ -278,3 +278,436 @@ describe("parseTableDefinition", () => {
         expect(result!.columns).toHaveLength(2);
     });
 });
+it("should parse column with single-quoted name", () => {
+    const result = parseColumnDefinition("'user_name' text not null");
+    expect(result).toMatchObject({
+        name: "user_name",
+        type: "text",
+        nullable: false,
+    });
+});
+
+it("should parse column with quoted type name", () => {
+    const result = parseColumnDefinition('id "uuid" primary key');
+    expect(result).toMatchObject({
+        name: "id",
+        type: "uuid",
+        isPrimaryKey: true,
+    });
+});
+
+it("should parse column with schema-qualified quoted type", () => {
+    const result = parseColumnDefinition('id "public"."uuid" primary key');
+    expect(result).toMatchObject({
+        name: "id",
+        type: "uuid",
+        isPrimaryKey: true,
+    });
+});
+
+it("should parse double precision type", () => {
+    const result = parseColumnDefinition("amount double precision");
+    expect(result).toMatchObject({
+        name: "amount",
+        type: "double precision",
+    });
+});
+
+it("should parse time with time zone", () => {
+    const result = parseColumnDefinition("meeting_time time with time zone");
+    expect(result).toMatchObject({
+        name: "meeting_time",
+        type: "time with time zone",
+    });
+});
+
+it("should parse timestamp without time zone", () => {
+    const result = parseColumnDefinition("created timestamp without time zone");
+    expect(result).toMatchObject({
+        name: "created",
+        type: "timestamp without time zone",
+    });
+});
+
+it("should parse time without time zone", () => {
+    const result = parseColumnDefinition("start_time time without time zone");
+    expect(result).toMatchObject({
+        name: "start_time",
+        type: "time without time zone",
+    });
+});
+
+it("should parse character varying with size", () => {
+    const result = parseColumnDefinition("name character varying(100)");
+    expect(result).toMatchObject({
+        name: "name",
+        type: "character varying(100)",
+    });
+});
+
+it("should parse array with bracket notation after type", () => {
+    const result = parseColumnDefinition("tags text [] not null");
+    expect(result).toMatchObject({
+        name: "tags",
+        type: "text",
+        isArray: true,
+        nullable: false,
+    });
+});
+
+it("should parse array with ARRAY keyword", () => {
+    const result = parseColumnDefinition("numbers integer array");
+    expect(result).toMatchObject({
+        name: "numbers",
+        type: "integer",
+        isArray: true,
+    });
+});
+
+it("should return null for invalid column definition without type", () => {
+    const result = parseColumnDefinition("just_a_name");
+    expect(result).toBeNull();
+});
+
+it("should return null for completely invalid column definition", () => {
+    const result = parseColumnDefinition("!@#$%");
+    expect(result).toBeNull();
+});
+
+it("should parse column with default followed by check constraint", () => {
+    const result = parseColumnDefinition(
+        "age integer default 0 check (age >= 0)"
+    );
+    expect(result).toMatchObject({
+        name: "age",
+        type: "integer",
+        defaultValue: "0",
+    });
+});
+
+it("should parse column with default at end of definition", () => {
+    const result = parseColumnDefinition("created_at timestamp default now()");
+    expect(result).toMatchObject({
+        name: "created_at",
+        type: "timestamp",
+        defaultValue: "now()",
+    });
+});
+
+it("should parse table with constraint-based foreign key with schema", () => {
+    const sql = `
+      create table posts (
+        id uuid primary key,
+        user_id uuid,
+        constraint fk_user foreign key (user_id) references auth.users(id)
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.relationships).toHaveLength(1);
+    expect(result!.relationships[0]).toMatchObject({
+        foreignKeyName: "fk_user",
+        columns: ["user_id"],
+        referencedRelation: "auth.users",
+        referencedColumns: ["id"],
+    });
+});
+
+it("should parse inline foreign key and create relationship", () => {
+    const sql = `
+      create table posts (
+        id uuid primary key,
+        user_id uuid unique references users(id)
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.relationships).toHaveLength(1);
+    expect(result!.relationships[0]).toMatchObject({
+        foreignKeyName: "posts_user_id_fkey",
+        columns: ["user_id"],
+        isOneToOne: true,
+        referencedRelation: "users",
+        referencedColumns: ["id"],
+    });
+});
+
+it("should parse inline foreign key with schema", () => {
+    const sql = `
+      create table posts (
+        id uuid primary key,
+        user_id uuid references auth.users(id)
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.columns[1].foreignKey).toMatchObject({
+        schema: "auth",
+        table: "users",
+        column: "id",
+    });
+    expect(result!.relationships[0].referencedRelation).toBe("auth.users");
+});
+
+it("should skip table-level PRIMARY KEY constraint", () => {
+    const sql = `
+      create table users (
+        id uuid,
+        email text,
+        primary key (id)
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.columns).toHaveLength(2);
+    expect(result!.columns.some((c) => c.name === "primary")).toBe(false);
+});
+
+it("should skip table-level UNIQUE constraint", () => {
+    const sql = `
+      create table users (
+        id uuid,
+        email text,
+        unique (email)
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.columns).toHaveLength(2);
+});
+
+it("should skip table-level CHECK constraint", () => {
+    const sql = `
+      create table users (
+        id uuid,
+        age integer,
+        check (age > 0)
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.columns).toHaveLength(2);
+});
+
+it("should skip CASE WHEN expressions", () => {
+    const sql = `
+      create table test (
+        id uuid,
+        case when true then 'value'
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.columns).toHaveLength(1);
+});
+
+it("should return null for table with unbalanced parentheses", () => {
+    const sql = `
+      create table users (
+        id uuid primary key,
+        email text
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeNull();
+});
+
+it("should return null for table with empty body", () => {
+    const sql = "create table users ()";
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeNull();
+});
+
+it("should return null for table with whitespace-only body", () => {
+    const sql = "create table users (   )";
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeNull();
+});
+
+it("should return null for table with only constraints, no columns", () => {
+    const sql = `
+      create table users (
+        primary key (id),
+        check (true)
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeNull();
+});
+
+it("should handle table with strings containing quotes", () => {
+    const sql = `
+      create table users (
+        id uuid primary key,
+        bio text default 'It\\'s a test'
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.columns).toHaveLength(2);
+});
+
+it("should handle table with nested parentheses in default values", () => {
+    const sql = `
+      create table users (
+        id uuid primary key,
+        data jsonb default '{"nested": {"key": "value"}}'::jsonb
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.columns).toHaveLength(2);
+});
+
+it("should handle empty column definitions in list", () => {
+    const sql = `
+      create table users (
+        id uuid,
+        ,
+        email text
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.columns).toHaveLength(2);
+    expect(result!.columns[0].name).toBe("id");
+    expect(result!.columns[1].name).toBe("email");
+});
+
+it("should handle comment-only lines in table body", () => {
+    const sql = `
+      create table users (
+        id uuid,
+        -- this is a comment
+        email text
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.columns).toHaveLength(2);
+});
+
+it("should parse column with default value followed by references", () => {
+    const sql = `
+      create table posts (
+        status text default 'draft' references statuses(name)
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.columns[0]).toMatchObject({
+        name: "status",
+        defaultValue: "'draft'",
+    });
+    expect(result!.columns[0].foreignKey).toMatchObject({
+        table: "statuses",
+        column: "name",
+    });
+});
+
+it("should handle foreign key on non-unique column", () => {
+    const sql = `
+      create table posts (
+        id uuid primary key,
+        category_id uuid references categories(id)
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.relationships[0].isOneToOne).toBe(false);
+});
+
+it("should handle constraint with FOREIGN KEY explicitly", () => {
+    const sql = `
+      create table test (
+        id uuid,
+        foreign key (id) references other(id)
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    // Should skip the foreign key line since it's not a column
+    expect(result!.columns).toHaveLength(1);
+});
+
+it("should handle WHEN clauses", () => {
+    const sql = `
+      create table test (
+        id uuid,
+        when something
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.columns).toHaveLength(1);
+});
+
+it("should handle THEN clauses", () => {
+    const sql = `
+      create table test (
+        id uuid,
+        then something
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.columns).toHaveLength(1);
+});
+
+it("should handle ELSE clauses", () => {
+    const sql = `
+      create table test (
+        id uuid,
+        else something
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.columns).toHaveLength(1);
+});
+
+it("should handle END keyword", () => {
+    const sql = `
+      create table test (
+        id uuid,
+        end
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.columns).toHaveLength(1);
+});
+
+it("should handle OTHERWISE keyword", () => {
+    const sql = `
+      create table test (
+        id uuid,
+        otherwise
+      )
+    `;
+    const result = parseTableDefinition(sql);
+
+    expect(result).toBeTruthy();
+    expect(result!.columns).toHaveLength(1);
+});
