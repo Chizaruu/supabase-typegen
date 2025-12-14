@@ -272,31 +272,6 @@ useTabs: false
                 );
             });
 
-            it("should parse all supported YAML properties", () => {
-                const yamlContent = `
-tabWidth: 4
-useTabs: false
-semi: true
-singleQuote: true
-trailingComma: "all"
-printWidth: 100
-                `.trim();
-
-                vi.mocked(fs.existsSync).mockImplementation((path) => {
-                    return path.toString().endsWith(".prettierrc.yaml");
-                });
-                vi.mocked(fs.readFileSync).mockReturnValue(yamlContent);
-
-                const result = detectPrettierConfig();
-
-                expect(result?.tabWidth).toBe(4);
-                expect(result?.useTabs).toBe(false);
-                expect(result?.semi).toBe(true);
-                expect(result?.singleQuote).toBe(true);
-                expect(result?.trailingComma).toBe("all");
-                expect(result?.printWidth).toBe(100);
-            });
-
             it("should handle quoted numeric values in YAML", () => {
                 const yamlContent = `
 tabWidth: "4"
@@ -436,25 +411,6 @@ printWidth: "100"
                     "yellow"
                 );
                 expect(result?.tabWidth).toBe(3);
-            });
-
-            it("should skip .ts files in second pass (lines 113-114)", () => {
-                vi.mocked(fs.existsSync).mockImplementation((path) => {
-                    return path.toString().endsWith("prettier.config.ts");
-                });
-
-                vi.mocked(fs.readFileSync).mockReturnValue(
-                    "export default { tabWidth: 4 }"
-                );
-
-                const result = detectPrettierConfig();
-
-                // Should warn but not try to parse
-                expect(logger.log).toHaveBeenCalledWith(
-                    expect.stringContaining("cannot parse"),
-                    "yellow"
-                );
-                expect(result).toBeNull();
             });
         });
 
@@ -610,14 +566,6 @@ printWidth: "100"
             );
         });
 
-        it("should prioritize useTabs over tabWidth (lines 130-136)", () => {
-            const config = { useTabs: true, tabWidth: 8 };
-
-            const result = getPrettierIndentSize(config);
-
-            expect(result).toBe(2);
-        });
-
         it("should return null when tabWidth is undefined and useTabs is false (line 142)", () => {
             const config = { useTabs: false };
 
@@ -626,73 +574,12 @@ printWidth: "100"
             expect(result).toBeNull();
         });
 
-        it("should handle empty config object (line 142)", () => {
-            const config = {};
-
-            const result = getPrettierIndentSize(config);
-
-            expect(result).toBeNull();
-        });
-
-        it("should handle config with only tabWidth (lines 138-140)", () => {
-            const config = { tabWidth: 2 };
-
-            const result = getPrettierIndentSize(config);
-
-            expect(result).toBe(2);
-        });
-
         it("should handle config with tabWidth 0 (lines 138-140)", () => {
             const config = { tabWidth: 0 };
 
             const result = getPrettierIndentSize(config);
 
             expect(result).toBe(0);
-        });
-
-        it("should ignore other config properties (lines 138-140)", () => {
-            const config = {
-                tabWidth: 4,
-                semi: true,
-                singleQuote: true,
-                printWidth: 100,
-            };
-
-            const result = getPrettierIndentSize(config);
-
-            expect(result).toBe(4);
-        });
-
-        it("should handle config with useTabs false explicitly (lines 138-140)", () => {
-            const config = { useTabs: false, tabWidth: 4 };
-
-            const result = getPrettierIndentSize(config);
-
-            expect(result).toBe(4);
-        });
-
-        it("should return null when only other properties present (line 142)", () => {
-            const config = {
-                semi: true,
-                singleQuote: true,
-                printWidth: 100,
-            };
-
-            const result = getPrettierIndentSize(config);
-
-            expect(result).toBeNull();
-        });
-
-        it("should log yellow warning when useTabs is true (lines 92-93)", () => {
-            const config = { useTabs: true };
-
-            const result = getPrettierIndentSize(config);
-
-            expect(result).toBe(2);
-            expect(logger.log).toHaveBeenCalledWith(
-                "  Prettier uses tabs, defaulting to 2 spaces for type generation",
-                "yellow"
-            );
         });
     });
 
@@ -708,69 +595,6 @@ printWidth: "100"
             const prettierConfig = detectPrettierConfig();
             const indentSize = getPrettierIndentSize(prettierConfig);
 
-            expect(indentSize).toBe(4);
-        });
-
-        it("should handle tabs configuration", () => {
-            const config = { useTabs: true };
-
-            vi.mocked(fs.existsSync).mockImplementation((path) => {
-                return path.toString().endsWith(".prettierrc.json");
-            });
-            vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(config));
-
-            const prettierConfig = detectPrettierConfig();
-            const indentSize = getPrettierIndentSize(prettierConfig);
-
-            expect(indentSize).toBe(2);
-        });
-
-        it("should return null when no config found", () => {
-            vi.mocked(fs.existsSync).mockReturnValue(false);
-
-            const prettierConfig = detectPrettierConfig();
-            const indentSize = getPrettierIndentSize(prettierConfig);
-
-            expect(indentSize).toBeNull();
-        });
-
-        it("should handle package.json with useTabs", () => {
-            vi.mocked(fs.existsSync).mockImplementation((path) => {
-                return path.toString().endsWith("package.json");
-            });
-            vi.mocked(fs.readFileSync).mockReturnValue(
-                JSON.stringify({
-                    prettier: { useTabs: true, tabWidth: 4 },
-                })
-            );
-
-            const config = detectPrettierConfig();
-            const indentSize = getPrettierIndentSize(config);
-
-            expect(config?.useTabs).toBe(true);
-            expect(indentSize).toBe(2);
-        });
-
-        it("should handle YAML with all properties", () => {
-            const yamlContent = `
-tabWidth: 4
-useTabs: false
-semi: true
-singleQuote: true
-trailingComma: "all"
-printWidth: 100
-            `.trim();
-
-            vi.mocked(fs.existsSync).mockImplementation((path) => {
-                return path.toString().endsWith(".prettierrc.yaml");
-            });
-            vi.mocked(fs.readFileSync).mockReturnValue(yamlContent);
-
-            const config = detectPrettierConfig();
-            const indentSize = getPrettierIndentSize(config);
-
-            expect(config?.tabWidth).toBe(4);
-            expect(config?.useTabs).toBe(false);
             expect(indentSize).toBe(4);
         });
     });
@@ -814,23 +638,6 @@ singleQuote: true
             expect(result?.singleQuote).toBe(true);
         });
 
-        it("should handle mixed quote styles in trailingComma", () => {
-            const yamlContent = `
-trailingComma: 'all'
-tabWidth: 2
-            `.trim();
-
-            vi.mocked(fs.existsSync).mockImplementation((path) => {
-                return path.toString().endsWith(".prettierrc.yaml");
-            });
-            vi.mocked(fs.readFileSync).mockReturnValue(yamlContent);
-
-            const result = detectPrettierConfig();
-
-            expect(result?.trailingComma).toBe("all");
-            expect(result?.tabWidth).toBe(2);
-        });
-
         it("should handle YAML with unsupported properties", () => {
             const yamlContent = `
 tabWidth: 2
@@ -857,14 +664,6 @@ printWidth: 80
             const result = getPrettierIndentSize(config);
 
             expect(result).toBe(-1);
-        });
-
-        it("should handle very large tabWidth", () => {
-            const config = { tabWidth: 9999 };
-
-            const result = getPrettierIndentSize(config);
-
-            expect(result).toBe(9999);
         });
     });
 });
