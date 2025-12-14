@@ -1,4 +1,8 @@
-# Supabase Type Generator
+# supabase-typegen
+
+[![npm version](https://img.shields.io/npm/v/supabase-typegen.svg)](https://www.npmjs.com/package/supabase-typegen)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/node/v/supabase-typegen.svg)](https://nodejs.org)
 
 > 🚀 Advanced SQL-to-TypeScript type generator for Supabase projects with comprehensive schema support
 
@@ -783,7 +787,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for det
 
 ## 📄 License
 
-MIT © chizaruu
+MIT © [chizaruu](https://github.com/chizaruu)
 
 ## 🙏 Acknowledgments
 

@@ -25,7 +25,7 @@
     "main": "./dist/index.js",
     "types": "./dist/index.d.js",
     "bin": {
-        "generate-supabase-types": "./dist/bin/generate-types.js"
+        "supabase-typegen": "./dist/bin/generate-types.js"
     },
     "files": [
         "dist",
