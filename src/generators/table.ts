@@ -99,9 +99,10 @@ export function generateTableType(
         const optionalMark = isOptional ? "?" : "";
         const nullable = col.nullable ? " | null" : "";
 
-        const commentLine = col.comment
-            ? `${indent.repeat(5)}/** ${col.comment} */\n`
-            : "";
+        const commentLine =
+            includeComments && col.comment
+                ? `${indent.repeat(5)}/** ${col.comment} */\n`
+                : "";
 
         return `${commentLine}${indent.repeat(
             5
@@ -119,9 +120,10 @@ export function generateTableType(
         );
         const nullable = col.nullable ? " | null" : "";
 
-        const commentLine = col.comment
-            ? `${indent.repeat(5)}/** ${col.comment} */\n`
-            : "";
+        const commentLine =
+            includeComments && col.comment
+                ? `${indent.repeat(5)}/** ${col.comment} */\n`
+                : "";
 
         return `${commentLine}${indent.repeat(
             5

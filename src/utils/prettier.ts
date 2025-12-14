@@ -25,19 +25,20 @@ function parseSimpleYaml(content: string): PrettierConfig | null {
 
             const [, key, value] = match;
             const cleanValue = value.trim();
+            const unquotedValue = cleanValue.replace(/['"]/g, "");
 
             if (key === "tabWidth") {
-                config.tabWidth = parseInt(cleanValue);
+                config.tabWidth = parseInt(unquotedValue);
             } else if (key === "useTabs") {
-                config.useTabs = cleanValue === "true";
+                config.useTabs = unquotedValue === "true";
             } else if (key === "semi") {
-                config.semi = cleanValue === "true";
+                config.semi = unquotedValue === "true";
             } else if (key === "singleQuote") {
-                config.singleQuote = cleanValue === "true";
+                config.singleQuote = unquotedValue === "true";
             } else if (key === "trailingComma") {
-                config.trailingComma = cleanValue.replace(/['"]/g, "");
+                config.trailingComma = unquotedValue;
             } else if (key === "printWidth") {
-                config.printWidth = parseInt(cleanValue);
+                config.printWidth = parseInt(unquotedValue);
             }
         }
 
@@ -58,6 +59,21 @@ export function detectPrettierConfig(): PrettierConfig | null {
         "package.json",
     ];
 
+    // First pass: check for .ts files and log warnings
+    for (const configPath of possiblePaths) {
+        if (configPath.endsWith(".ts")) {
+            const fullPath = join(process.cwd(), configPath);
+            if (existsSync(fullPath)) {
+                log(
+                    `  Found ${configPath} but cannot parse JS config files`,
+                    "yellow"
+                );
+                log(`  Use --indent to specify indentation manually`, "yellow");
+            }
+        }
+    }
+
+    // Second pass: find and return the first valid config
     for (const configPath of possiblePaths) {
         const fullPath = join(process.cwd(), configPath);
 
@@ -92,12 +108,9 @@ export function detectPrettierConfig(): PrettierConfig | null {
                 }
             }
 
+            // Skip .ts files in second pass since we already warned about them
             if (configPath.endsWith(".ts")) {
-                log(
-                    `  Found ${configPath} but cannot parse JS config files`,
-                    "yellow"
-                );
-                log(`  Use --indent to specify indentation manually`, "yellow");
+                continue;
             }
         } catch (error) {
             continue;

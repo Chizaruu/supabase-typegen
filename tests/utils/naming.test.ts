@@ -117,5 +117,12 @@ describe("convertCase", () => {
             expect(convertCase("user__name", "PascalCase")).toBe("UserName");
             expect(convertCase("user__name", "camelCase")).toBe("userName");
         });
+
+        it("should return original string for unknown convention (line 38)", () => {
+            expect(convertCase("userName", "unknown" as any)).toBe("userName");
+            expect(convertCase("user_name", "invalid" as any)).toBe(
+                "user_name"
+            );
+        });
     });
 });

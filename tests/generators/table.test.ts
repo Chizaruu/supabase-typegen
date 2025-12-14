@@ -359,4 +359,334 @@ describe("generateTableType", () => {
 
         expect(result).toContain('Database["public"]["Enums"]["user_role"]');
     });
+
+    it("should handle indexes without method field", () => {
+        const tableWithIndexes: TableDefinition = {
+            ...basicTable,
+            indexes: [
+                {
+                    name: "idx_users_email",
+                    tableName: "users",
+                    columns: ["email"],
+                    isUnique: true,
+                },
+            ],
+        };
+
+        const result = generateTableType(
+            tableWithIndexes,
+            "preserve",
+            2,
+            true,
+            false
+        );
+
+        expect(result).toContain("Indexes:");
+        expect(result).toContain('name: "idx_users_email"');
+        expect(result).not.toContain("method:");
+    });
+
+    it("should handle indexes with where clause", () => {
+        const tableWithIndexes: TableDefinition = {
+            ...basicTable,
+            indexes: [
+                {
+                    name: "idx_active_users",
+                    tableName: "users",
+                    columns: ["email"],
+                    isUnique: false,
+                    method: "btree",
+                    whereClause: "deleted_at IS NULL",
+                },
+            ],
+        };
+
+        const result = generateTableType(
+            tableWithIndexes,
+            "preserve",
+            2,
+            true,
+            false
+        );
+
+        expect(result).toContain("Indexes:");
+        expect(result).toContain('where: "deleted_at IS NULL"');
+    });
+
+    it("should escape quotes in where clause", () => {
+        const tableWithIndexes: TableDefinition = {
+            ...basicTable,
+            indexes: [
+                {
+                    name: "idx_status_users",
+                    tableName: "users",
+                    columns: ["email"],
+                    isUnique: false,
+                    whereClause: 'status = "active"',
+                },
+            ],
+        };
+
+        const result = generateTableType(
+            tableWithIndexes,
+            "preserve",
+            2,
+            true,
+            false
+        );
+
+        expect(result).toContain('where: "status = \\"active\\""');
+    });
+
+    it("should handle multiple indexes with mixed options", () => {
+        const tableWithIndexes: TableDefinition = {
+            ...basicTable,
+            indexes: [
+                {
+                    name: "idx_email",
+                    tableName: "users",
+                    columns: ["email"],
+                    isUnique: true,
+                    method: "btree",
+                },
+                {
+                    name: "idx_created",
+                    tableName: "users",
+                    columns: ["created_at"],
+                    isUnique: false,
+                    whereClause: "created_at IS NOT NULL",
+                },
+                {
+                    name: "idx_composite",
+                    tableName: "users",
+                    columns: ["email", "created_at"],
+                    isUnique: false,
+                },
+            ],
+        };
+
+        const result = generateTableType(
+            tableWithIndexes,
+            "preserve",
+            2,
+            true,
+            false
+        );
+
+        expect(result).toContain("idx_email");
+        expect(result).toContain("idx_created");
+        expect(result).toContain("idx_composite");
+        expect(result).toContain('method: "btree"');
+        expect(result).toContain('where: "created_at IS NOT NULL"');
+    });
+
+    it("should include comments in Insert type when enabled", () => {
+        const tableWithColumnComments: TableDefinition = {
+            ...basicTable,
+            columns: [
+                {
+                    name: "id",
+                    type: "uuid",
+                    nullable: false,
+                    defaultValue: "gen_random_uuid()",
+                    isArray: false,
+                    isPrimaryKey: true,
+                    isUnique: false,
+                    comment: "Primary key identifier",
+                },
+                {
+                    name: "email",
+                    type: "text",
+                    nullable: false,
+                    defaultValue: null,
+                    isArray: false,
+                    isPrimaryKey: false,
+                    isUnique: true,
+                    comment: "User email",
+                },
+            ],
+        };
+
+        const result = generateTableType(
+            tableWithColumnComments,
+            "preserve",
+            2,
+            false,
+            true
+        );
+
+        // Comments should appear in all type sections
+        expect(result).toContain("/** Primary key identifier */");
+        expect(result).toContain("/** User email */");
+
+        // Check they appear in Insert type specifically
+        const insertSection = result.split("Insert: {")[1].split("}")[0];
+        expect(insertSection).toContain("/** Primary key identifier */");
+        expect(insertSection).toContain("/** User email */");
+    });
+
+    it("should not include comments in Insert type when disabled", () => {
+        const tableWithColumnComments: TableDefinition = {
+            ...basicTable,
+            columns: [
+                {
+                    name: "id",
+                    type: "uuid",
+                    nullable: false,
+                    defaultValue: null,
+                    isArray: false,
+                    isPrimaryKey: true,
+                    isUnique: false,
+                    comment: "Primary key identifier",
+                },
+            ],
+        };
+
+        const result = generateTableType(
+            tableWithColumnComments,
+            "preserve",
+            2,
+            false,
+            false
+        );
+
+        expect(result).not.toContain("/** Primary key identifier */");
+    });
+
+    it("should use custom schema for enums", () => {
+        const enums = new Set(["custom_enum"]);
+        const tableWithEnum: TableDefinition = {
+            ...basicTable,
+            schema: "custom_schema",
+            columns: [
+                {
+                    name: "status",
+                    type: "custom_enum",
+                    nullable: false,
+                    defaultValue: null,
+                    isArray: false,
+                    isPrimaryKey: false,
+                    isUnique: false,
+                },
+            ],
+        };
+
+        const result = generateTableType(
+            tableWithEnum,
+            "preserve",
+            2,
+            false,
+            false,
+            enums,
+            "custom_schema"
+        );
+
+        expect(result).toContain(
+            'Database["custom_schema"]["Enums"]["custom_enum"]'
+        );
+    });
+
+    it("should handle geometric types when enabled", () => {
+        const tableWithGeometric: TableDefinition = {
+            ...basicTable,
+            columns: [
+                {
+                    name: "location",
+                    type: "point",
+                    nullable: true,
+                    defaultValue: null,
+                    isArray: false,
+                    isPrimaryKey: false,
+                    isUnique: false,
+                },
+            ],
+        };
+
+        const resultWithGeometric = generateTableType(
+            tableWithGeometric,
+            "preserve",
+            2,
+            false,
+            false,
+            new Set(),
+            "public",
+            true
+        );
+
+        const resultWithoutGeometric = generateTableType(
+            tableWithGeometric,
+            "preserve",
+            2,
+            false,
+            false,
+            new Set(),
+            "public",
+            false
+        );
+
+        expect(resultWithGeometric).toContain("location: Point | null");
+        expect(resultWithoutGeometric).toContain("location: string | null");
+    });
+
+    it("should handle empty relationships array", () => {
+        const tableWithNoRelations: TableDefinition = {
+            ...basicTable,
+            relationships: [],
+        };
+
+        const result = generateTableType(
+            tableWithNoRelations,
+            "preserve",
+            2,
+            false,
+            false
+        );
+
+        expect(result).toContain("Relationships: []");
+    });
+
+    it("should handle empty indexes array", () => {
+        const tableWithNoIndexes: TableDefinition = {
+            ...basicTable,
+            indexes: [],
+        };
+
+        const result = generateTableType(
+            tableWithNoIndexes,
+            "preserve",
+            2,
+            true,
+            false
+        );
+
+        expect(result).toContain("Indexes: []");
+    });
+
+    it("should properly format nullable columns with defaults in Insert type", () => {
+        const tableWithNullableDefaults: TableDefinition = {
+            ...basicTable,
+            columns: [
+                {
+                    name: "optional_field",
+                    type: "text",
+                    nullable: true,
+                    defaultValue: "NULL",
+                    isArray: false,
+                    isPrimaryKey: false,
+                    isUnique: false,
+                },
+            ],
+        };
+
+        const result = generateTableType(
+            tableWithNullableDefaults,
+            "preserve",
+            2,
+            false,
+            false
+        );
+
+        const insertSection = result.split("Insert: {")[1].split("}")[0];
+        expect(insertSection).toContain("optional_field?: string | null");
+    });
 });
