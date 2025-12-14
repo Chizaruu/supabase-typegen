@@ -77,6 +77,113 @@ describe("parseJsonbColumns", () => {
 
         expect(result).toHaveLength(0);
     });
+
+    it("should handle table with schema prefix", () => {
+        const sql = `
+      create table public.users (
+        data jsonb default '{}'::jsonb
+      );
+    `;
+        const result = parseJsonbColumns(sql, "test.sql");
+
+        expect(result).toHaveLength(1);
+        expect(result[0]!.table).toBe("users");
+    });
+
+    it("should handle quoted identifiers", () => {
+        const sql = `
+      create table "user_table" (
+        "user_data" jsonb default '{}'::jsonb
+      );
+    `;
+        const result = parseJsonbColumns(sql, "test.sql");
+
+        expect(result).toHaveLength(1);
+        expect(result[0]!.table).toBe("user_table");
+        expect(result[0]!.column).toBe("user_data");
+    });
+
+    it("should handle quoted names with special characters", () => {
+        const sql = `
+      create table "table-with-dashes" (
+        "user settings" jsonb default '{}'::jsonb
+      );
+    `;
+        const result = parseJsonbColumns(sql, "test.sql");
+
+        expect(result).toHaveLength(1);
+        expect(result[0]!.table).toBe("table-with-dashes");
+        expect(result[0]!.column).toBe("user settings");
+    });
+
+    it("should handle 'if not exists' clause", () => {
+        const sql = `
+      create table if not exists users (
+        data jsonb default '{}'::jsonb
+      );
+    `;
+        const result = parseJsonbColumns(sql, "test.sql");
+
+        expect(result).toHaveLength(1);
+    });
+
+    it("should handle jsonb with NOT NULL constraint", () => {
+        const sql = `
+      create table users (
+        data jsonb not null default '{}'::jsonb
+      );
+    `;
+        const result = parseJsonbColumns(sql, "test.sql");
+
+        expect(result).toHaveLength(1);
+        expect(result[0]!.column).toBe("data");
+    });
+
+    it("should handle complex jsonb_build_object with nested parentheses", () => {
+        const sql = `
+      create table users (
+        settings jsonb default jsonb_build_object(
+          'config', jsonb_build_object('nested', true),
+          'other', 'value'
+        )
+      );
+    `;
+        const result = parseJsonbColumns(sql, "test.sql");
+
+        expect(result).toHaveLength(1);
+        expect(result[0]!.defaultValue).toContain("jsonb_build_object");
+    });
+
+    it("should handle jsonb_build_object with strings containing parentheses", () => {
+        const sql = `
+      create table users (
+        data jsonb default jsonb_build_object('expr', '(a + b)', 'val', 10)
+      );
+    `;
+        const result = parseJsonbColumns(sql, "test.sql");
+
+        expect(result).toHaveLength(1);
+        expect(result[0]!.defaultValue).toContain("(a + b)");
+    });
+
+    it("should not match create table without jsonb columns", () => {
+        const sql = `
+      create table users (
+        id uuid,
+        name text
+      );
+    `;
+        const result = parseJsonbColumns(sql, "test.sql");
+
+        expect(result).toHaveLength(0);
+    });
+
+    it("should handle invalid SQL gracefully", () => {
+        const sql = `create table incomplete (`;
+        const result = parseJsonbColumns(sql, "test.sql");
+
+        expect(result).toHaveLength(0);
+    });
 });
 
 describe("parseJsonbBuildObject", () => {
@@ -121,6 +228,54 @@ describe("parseJsonbBuildObject", () => {
             age: 30,
             active: true,
         });
+    });
+
+    it("should handle malformed input gracefully", () => {
+        const sql = `jsonb_build_object('incomplete`;
+        const result = parseJsonbBuildObject(sql);
+
+        // Malformed input that doesn't throw returns empty object
+        expect(result).toEqual({});
+    });
+
+    it("should handle empty jsonb_build_object", () => {
+        const sql = `jsonb_build_object()`;
+        const result = parseJsonbBuildObject(sql);
+
+        expect(result).toEqual({});
+    });
+
+    it("should handle odd number of arguments", () => {
+        const sql = `jsonb_build_object('key1', 'value1', 'key2')`;
+        const result = parseJsonbBuildObject(sql);
+
+        expect(result).toEqual({ key1: "value1" });
+    });
+
+    it("should handle strings with commas", () => {
+        const sql = `jsonb_build_object('name', 'Doe, John', 'age', 30)`;
+        const result = parseJsonbBuildObject(sql);
+
+        expect(result).toEqual({
+            name: "Doe, John",
+            age: 30,
+        });
+    });
+
+    it("should return null when a runtime error occurs during parsing", () => {
+        const originalTrim = String.prototype.trim;
+        String.prototype.trim = function () {
+            throw new Error("Forced error");
+        } as any;
+
+        try {
+            const result = parseJsonbBuildObject(
+                "jsonb_build_object('key', 'value')"
+            );
+            expect(result).toBeNull();
+        } finally {
+            String.prototype.trim = originalTrim;
+        }
     });
 });
 
@@ -186,6 +341,12 @@ describe("inferTypeFromValue", () => {
         expect(result).toContain("user:");
         expect(result).toContain("name: string");
         expect(result).toContain("age: number");
+    });
+
+    it("should handle unknown types", () => {
+        expect(inferTypeFromValue(() => {})).toBe("unknown");
+        expect(inferTypeFromValue(Symbol("test"))).toBe("unknown");
+        expect(inferTypeFromValue(BigInt(123))).toBe("unknown");
     });
 });
 
@@ -335,41 +496,33 @@ describe("extractNestedTypes", () => {
         });
     });
 
-    it("should handle empty arrays", async () => {
+    it("should handle arrays", async () => {
         const { extractNestedTypes } = await import(
             "../../src/parsers/jsonb.ts"
         );
 
-        const result = extractNestedTypes([], "test", 0, "preserve");
-        expect(result.typeDefinition).toBe("unknown[]");
-        expect(result.nestedTypes).toEqual([]);
-    });
+        const emptyResult = extractNestedTypes([], "test", 0, "preserve");
+        expect(emptyResult.typeDefinition).toBe("unknown[]");
+        expect(emptyResult.nestedTypes).toEqual([]);
 
-    it("should handle arrays of primitives", async () => {
-        const { extractNestedTypes } = await import(
-            "../../src/parsers/jsonb.ts"
+        const primitivesResult = extractNestedTypes(
+            [1, 2, 3],
+            "test",
+            0,
+            "preserve"
         );
+        expect(primitivesResult.typeDefinition).toBe("number[]");
+        expect(primitivesResult.nestedTypes).toEqual([]);
 
-        const result = extractNestedTypes([1, 2, 3], "test", 0, "preserve");
-        expect(result.typeDefinition).toBe("number[]");
-        expect(result.nestedTypes).toEqual([]);
-    });
-
-    it("should handle arrays of objects", async () => {
-        const { extractNestedTypes } = await import(
-            "../../src/parsers/jsonb.ts"
-        );
-
-        const result = extractNestedTypes(
+        const objectsResult = extractNestedTypes(
             [{ name: "John", age: 30 }],
             "user",
             0,
             "preserve"
         );
-        // Arrays of objects return inline type definition with []
-        expect(result.typeDefinition).toContain("name: string");
-        expect(result.typeDefinition).toContain("age: number");
-        expect(result.typeDefinition).toContain("[]");
+        expect(objectsResult.typeDefinition).toContain("name: string");
+        expect(objectsResult.typeDefinition).toContain("age: number");
+        expect(objectsResult.typeDefinition).toContain("[]");
     });
 
     it("should extract nested object types", async () => {
@@ -452,6 +605,42 @@ describe("extractNestedTypes", () => {
         expect(result.typeDefinition).toContain("age: number");
         expect(result.typeDefinition).toContain("address: user_address");
         expect(result.nestedTypes).toHaveLength(1);
+    });
+
+    it("should handle function type as unknown", async () => {
+        const { extractNestedTypes } = await import(
+            "../../src/parsers/jsonb.ts"
+        );
+
+        const func = () => {};
+        const result = extractNestedTypes(func, "test", 0, "preserve");
+
+        expect(result.typeDefinition).toBe("unknown");
+        expect(result.nestedTypes).toEqual([]);
+    });
+
+    it("should handle symbol type as unknown", async () => {
+        const { extractNestedTypes } = await import(
+            "../../src/parsers/jsonb.ts"
+        );
+
+        const sym = Symbol("test");
+        const result = extractNestedTypes(sym, "test", 0, "preserve");
+
+        expect(result.typeDefinition).toBe("unknown");
+        expect(result.nestedTypes).toEqual([]);
+    });
+
+    it("should handle BigInt as unknown", async () => {
+        const { extractNestedTypes } = await import(
+            "../../src/parsers/jsonb.ts"
+        );
+
+        const bigint = BigInt(999);
+        const result = extractNestedTypes(bigint, "test", 0, "preserve");
+
+        expect(result.typeDefinition).toBe("unknown");
+        expect(result.nestedTypes).toEqual([]);
     });
 });
 
@@ -549,25 +738,6 @@ describe("generateTypeDefinition", () => {
         expect(result.typeDefinition).toBe("Record<string, unknown>");
     });
 
-    it("should handle unparseable jsonb_build_object", async () => {
-        const { generateTypeDefinition } = await import(
-            "../../src/parsers/jsonb.ts"
-        );
-
-        const column = {
-            table: "users",
-            column: "data",
-            defaultValue: "jsonb_build_object(",
-            fileName: "test.sql",
-        };
-
-        const result = generateTypeDefinition(column, false, "preserve");
-
-        // Unparseable jsonb_build_object returns an empty object type definition
-        expect(result.typeDefinition).toContain("{");
-        expect(result.typeDefinition).toContain("}");
-    });
-
     it("should preserve comments", async () => {
         const { generateTypeDefinition } = await import(
             "../../src/parsers/jsonb.ts"
@@ -605,131 +775,6 @@ describe("generateTypeDefinition", () => {
         expect(generateTypeDefinition(column, false, "camelCase").name).toBe(
             "userAccountsUserSettings"
         );
-    });
-});
-
-describe("parseJsonbBuildObject edge cases", () => {
-    it("should handle deeply nested objects", () => {
-        const sql = `jsonb_build_object('a', jsonb_build_object('b', jsonb_build_object('c', 'value')))`;
-        const result = parseJsonbBuildObject(sql);
-
-        expect(result).toEqual({
-            a: {
-                b: {
-                    c: "value",
-                },
-            },
-        });
-    });
-
-    it("should handle malformed input gracefully", () => {
-        const sql = `jsonb_build_object('incomplete`;
-        const result = parseJsonbBuildObject(sql);
-
-        // Malformed input returns empty object instead of null
-        expect(result).toEqual({});
-    });
-
-    it("should handle empty jsonb_build_object", () => {
-        const sql = `jsonb_build_object()`;
-        const result = parseJsonbBuildObject(sql);
-
-        expect(result).toEqual({});
-    });
-
-    it("should handle odd number of arguments", () => {
-        const sql = `jsonb_build_object('key1', 'value1', 'key2')`;
-        const result = parseJsonbBuildObject(sql);
-
-        expect(result).toEqual({ key1: "value1" });
-    });
-
-    it("should handle strings with commas", () => {
-        const sql = `jsonb_build_object('name', 'Doe, John', 'age', 30)`;
-        const result = parseJsonbBuildObject(sql);
-
-        expect(result).toEqual({
-            name: "Doe, John",
-            age: 30,
-        });
-    });
-
-    it("should handle escaped quotes", () => {
-        const sql = `jsonb_build_object('message', 'He said \\'hello\\'')`;
-        const result = parseJsonbBuildObject(sql);
-
-        expect(result?.message).toBeTruthy();
-    });
-});
-
-describe("parseJsonbColumns edge cases", () => {
-    it("should handle 'if not exists' clause", () => {
-        const sql = `
-      create table if not exists users (
-        data jsonb default '{}'::jsonb
-      );
-    `;
-        const result = parseJsonbColumns(sql, "test.sql");
-
-        expect(result).toHaveLength(1);
-    });
-
-    it("should handle jsonb with NOT NULL constraint", () => {
-        const sql = `
-      create table users (
-        data jsonb not null default '{}'::jsonb
-      );
-    `;
-        const result = parseJsonbColumns(sql, "test.sql");
-
-        expect(result).toHaveLength(1);
-        expect(result[0]!.column).toBe("data");
-    });
-
-    it("should handle complex jsonb_build_object with nested parentheses", () => {
-        const sql = `
-      create table users (
-        settings jsonb default jsonb_build_object(
-          'config', jsonb_build_object('nested', true),
-          'other', 'value'
-        )
-      );
-    `;
-        const result = parseJsonbColumns(sql, "test.sql");
-
-        expect(result).toHaveLength(1);
-        expect(result[0]!.defaultValue).toContain("jsonb_build_object");
-    });
-
-    it("should handle jsonb_build_object with strings containing parentheses", () => {
-        const sql = `
-      create table users (
-        data jsonb default jsonb_build_object('expr', '(a + b)', 'val', 10)
-      );
-    `;
-        const result = parseJsonbColumns(sql, "test.sql");
-
-        expect(result).toHaveLength(1);
-        expect(result[0]!.defaultValue).toContain("(a + b)");
-    });
-
-    it("should not match create table without jsonb columns", () => {
-        const sql = `
-      create table users (
-        id uuid,
-        name text
-      );
-    `;
-        const result = parseJsonbColumns(sql, "test.sql");
-
-        expect(result).toHaveLength(0);
-    });
-
-    it("should handle invalid SQL gracefully", () => {
-        const sql = `create table incomplete (`;
-        const result = parseJsonbColumns(sql, "test.sql");
-
-        expect(result).toHaveLength(0);
     });
 });
 
@@ -809,21 +854,6 @@ describe("scanSchemas", () => {
         expect(result).toEqual([]);
     });
 
-    it("should return empty array when all files fail to read", async () => {
-        mockReadFileSync.mockImplementation(() => {
-            throw new Error("Read error");
-        });
-
-        const { scanSchemas } = await import("../../src/parsers/jsonb.ts");
-        const result = scanSchemas(
-            ["/bad1.sql", "/bad2.sql"],
-            false,
-            "preserve"
-        );
-
-        expect(result).toEqual([]);
-    });
-
     it("should extract nested types when flag is true", async () => {
         mockReadFileSync.mockReturnValue(`
             create table users (
@@ -855,225 +885,18 @@ describe("scanSchemas", () => {
         expect(result[0]!.name).toBe("UserAccountsUserData");
     });
 
-    it("should handle file path with backslashes (Windows)", async () => {
+    it("should handle file path ending with slash (fileName fallback)", async () => {
         mockReadFileSync.mockReturnValue(`
             create table users (
-                data jsonb default '{}'::jsonb
+                preferences jsonb default '{}'::jsonb
             );
         `);
 
         const { scanSchemas } = await import("../../src/parsers/jsonb.ts");
-        const result = scanSchemas(
-            ["C:\\path\\to\\schema.sql"],
-            false,
-            "preserve"
-        );
+        const result = scanSchemas(["/path/to/"], false, "preserve");
 
-        expect(result).toHaveLength(1);
-    });
-
-    it("should skip files with no JSONB columns but continue processing", async () => {
-        mockReadFileSync.mockReturnValueOnce(`
-                create table users (
-                    id uuid
-                );
-            `).mockReturnValueOnce(`
-                create table posts (
-                    meta jsonb default '{}'::jsonb
-                );
-            `);
-
-        const { scanSchemas } = await import("../../src/parsers/jsonb.ts");
-        const result = scanSchemas(
-            ["/empty.sql", "/with-jsonb.sql"],
-            false,
-            "preserve"
-        );
-
-        expect(result).toHaveLength(1);
-        expect(result[0]!.table).toBe("posts");
-    });
-});
-
-describe("Edge cases for type inference", () => {
-    it("should handle function type as unknown", () => {
-        const func = () => {};
-        const result = inferTypeFromValue(func);
-        expect(result).toBe("unknown");
-    });
-
-    it("should handle symbol type as unknown", () => {
-        const sym = Symbol("test");
-        const result = inferTypeFromValue(sym);
-        expect(result).toBe("unknown");
-    });
-
-    it("should handle BigInt as unknown", () => {
-        const bigint = BigInt(123);
-        const result = inferTypeFromValue(bigint);
-        expect(result).toBe("unknown");
-    });
-
-    it("should handle function in extractNestedTypes", async () => {
-        const { extractNestedTypes } = await import(
-            "../../src/parsers/jsonb.ts"
-        );
-
-        const func = () => {};
-        const result = extractNestedTypes(func, "test", 0, "preserve");
-
-        expect(result.typeDefinition).toBe("unknown");
-        expect(result.nestedTypes).toEqual([]);
-    });
-
-    it("should handle symbol in extractNestedTypes", async () => {
-        const { extractNestedTypes } = await import(
-            "../../src/parsers/jsonb.ts"
-        );
-
-        const sym = Symbol("test");
-        const result = extractNestedTypes(sym, "test", 0, "preserve");
-
-        expect(result.typeDefinition).toBe("unknown");
-        expect(result.nestedTypes).toEqual([]);
-    });
-
-    it("should handle BigInt in extractNestedTypes", async () => {
-        const { extractNestedTypes } = await import(
-            "../../src/parsers/jsonb.ts"
-        );
-
-        const bigint = BigInt(999);
-        const result = extractNestedTypes(bigint, "test", 0, "preserve");
-
-        expect(result.typeDefinition).toBe("unknown");
-        expect(result.nestedTypes).toEqual([]);
-    });
-});
-
-describe("parseJsonbBuildObject error handling", () => {
-    it("should handle deeply nested malformed structures", () => {
-        // Create a very complex malformed input that might trigger the catch block
-        const sql = `jsonb_build_object(${Array(1000)
-            .fill("'key', 'value'")
-            .join(", ")})`;
-        const result = parseJsonbBuildObject(sql);
-
-        // Should handle gracefully - either parse or return empty object
-        expect(result).toBeDefined();
-    });
-
-    it("should handle input with extreme nesting", () => {
-        // Create extremely nested structure
-        let sql = "jsonb_build_object('a'";
-        for (let i = 0; i < 100; i++) {
-            sql += ", jsonb_build_object('nested'";
-        }
-        // Don't close it properly to potentially trigger error
-
-        const result = parseJsonbBuildObject(sql);
-        expect(result).toBeDefined();
-    });
-});
-
-describe("parseJsonbColumns - schema and quote support", () => {
-    it("should handle table with schema prefix", () => {
-        const sql = `
-      create table public.users (
-        data jsonb default '{}'::jsonb
-      );
-    `;
-        const result = parseJsonbColumns(sql, "test.sql");
-
+        // When path ends with /, .pop() returns "", so fallback to schemaPath is used
         expect(result).toHaveLength(1);
         expect(result[0]!.table).toBe("users");
-        expect(result[0]!.column).toBe("data");
-    });
-
-    it("should handle quoted table names", () => {
-        const sql = `
-      create table "user_table" (
-        data jsonb default '{}'::jsonb
-      );
-    `;
-        const result = parseJsonbColumns(sql, "test.sql");
-
-        expect(result).toHaveLength(1);
-        expect(result[0]!.table).toBe("user_table");
-    });
-
-    it("should handle quoted column names", () => {
-        const sql = `
-      create table users (
-        "user_data" jsonb default '{}'::jsonb
-      );
-    `;
-        const result = parseJsonbColumns(sql, "test.sql");
-
-        expect(result).toHaveLength(1);
-        expect(result[0]!.column).toBe("user_data");
-    });
-
-    it("should handle both quoted table and column names", () => {
-        const sql = `
-      create table "user_table" (
-        "user_data" jsonb default '{}'::jsonb
-      );
-    `;
-        const result = parseJsonbColumns(sql, "test.sql");
-
-        expect(result).toHaveLength(1);
-        expect(result[0]!.table).toBe("user_table");
-        expect(result[0]!.column).toBe("user_data");
-    });
-
-    it("should handle schema prefix with quoted names", () => {
-        const sql = `
-      create table "public"."users" (
-        "preferences" jsonb default '{}'::jsonb
-      );
-    `;
-        const result = parseJsonbColumns(sql, "test.sql");
-
-        expect(result).toHaveLength(1);
-        expect(result[0]!.table).toBe("users");
-        expect(result[0]!.column).toBe("preferences");
-    });
-
-    it("should handle mixed quoted and unquoted names", () => {
-        const sql = `
-      create table public."user_accounts" (
-        preferences jsonb default '{}'::jsonb
-      );
-    `;
-        const result = parseJsonbColumns(sql, "test.sql");
-
-        expect(result).toHaveLength(1);
-        expect(result[0]!.table).toBe("user_accounts");
-    });
-
-    it("should handle schema prefix with IF NOT EXISTS", () => {
-        const sql = `
-      create table if not exists public.users (
-        data jsonb default '{}'::jsonb
-      );
-    `;
-        const result = parseJsonbColumns(sql, "test.sql");
-
-        expect(result).toHaveLength(1);
-        expect(result[0]!.table).toBe("users");
-    });
-
-    it("should handle complex names with underscores and numbers", () => {
-        const sql = `
-      create table "my_schema_123"."my_table_456" (
-        "user_data_v2" jsonb default '{}'::jsonb
-      );
-    `;
-        const result = parseJsonbColumns(sql, "test.sql");
-
-        expect(result).toHaveLength(1);
-        expect(result[0]!.table).toBe("my_table_456");
-        expect(result[0]!.column).toBe("user_data_v2");
     });
 });

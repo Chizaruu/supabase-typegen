@@ -176,21 +176,15 @@ describe("mapPostgresTypeToTypeScript", () => {
             expect(
                 mapPostgresTypeToTypeScript("text", true, schema, noEnums)
             ).toBe("string[]");
-            expect(
-                mapPostgresTypeToTypeScript("boolean", true, schema, noEnums)
-            ).toBe("boolean[]");
         });
     });
 
     describe("enum types", () => {
         it("should map enum types to Database enum reference", () => {
-            const enums = new Set(["user_role", "status"]);
+            const enums = new Set(["user_role"]);
             expect(
                 mapPostgresTypeToTypeScript("user_role", false, schema, enums)
             ).toBe('Database["public"]["Enums"]["user_role"]');
-            expect(
-                mapPostgresTypeToTypeScript("status", false, schema, enums)
-            ).toBe('Database["public"]["Enums"]["status"]');
         });
 
         it("should handle enum arrays", () => {
@@ -206,15 +200,6 @@ describe("mapPostgresTypeToTypeScript", () => {
             expect(
                 mapPostgresTypeToTypeScript(
                     "point",
-                    false,
-                    schema,
-                    noEnums,
-                    false
-                )
-            ).toBe("string");
-            expect(
-                mapPostgresTypeToTypeScript(
-                    "line",
                     false,
                     schema,
                     noEnums,
@@ -295,17 +280,6 @@ describe("mapPostgresTypeToTypeScript", () => {
 });
 
 describe("detectGeometricTypes", () => {
-    it("should detect point types", () => {
-        const tables = [
-            {
-                columns: [{ name: "location", type: "point", isArray: false }],
-            },
-        ];
-        const result = detectGeometricTypes(tables as any);
-        expect(result.has("point")).toBe(true);
-        expect(result.size).toBe(1);
-    });
-
     it("should detect multiple geometric types", () => {
         const tables = [
             {

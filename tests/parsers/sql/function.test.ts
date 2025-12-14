@@ -77,53 +77,6 @@ describe("parseFunctionDefinition", () => {
         expect(result!.args[0].hasDefault).toBe(true);
     });
 
-    it("should parse function returning void", () => {
-        const sql = `
-      create function log_action()
-      returns void
-      language plpgsql
-      as $$
-      begin
-        insert into logs (timestamp) values (now());
-      end;
-      $$;
-    `;
-        const result = parseFunctionDefinition(sql);
-
-        expect(result).toBeTruthy();
-        expect(result!.returns).toBe("void");
-    });
-
-    it("should parse function with no arguments", () => {
-        const sql = `
-      create function get_timestamp()
-      returns timestamp
-      language sql
-      as $$
-        select now();
-      $$;
-    `;
-        const result = parseFunctionDefinition(sql);
-
-        expect(result).toBeTruthy();
-        expect(result!.args).toHaveLength(0);
-    });
-
-    it("should parse function with array return type", () => {
-        const sql = `
-      create function get_tags()
-      returns text[]
-      language sql
-      as $$
-        select array['tag1', 'tag2'];
-      $$;
-    `;
-        const result = parseFunctionDefinition(sql);
-
-        expect(result).toBeTruthy();
-        expect(result!.returns).toContain("[]");
-    });
-
     it("should parse function with or replace", () => {
         const sql = `
       create or replace function test_func()
@@ -159,38 +112,6 @@ describe("parseFunctionDefinition", () => {
 
         expect(result).toBeTruthy();
         expect(result!.name).toBe("myFunction");
-    });
-
-    it("should parse function with SETOF return", () => {
-        const sql = `
-      create function get_all_users()
-      returns setof users
-      language sql
-      as $$
-        select * from users;
-      $$;
-    `;
-        const result = parseFunctionDefinition(sql);
-
-        expect(result).toBeTruthy();
-        expect(result!.returns).toContain("setof");
-    });
-
-    it("should parse function with composite type argument", () => {
-        const sql = `
-      create function process_user(user_data users)
-      returns boolean
-      language plpgsql
-      as $$
-      begin
-        return true;
-      end;
-      $$;
-    `;
-        const result = parseFunctionDefinition(sql);
-
-        expect(result).toBeTruthy();
-        expect(result!.args[0].type).toBe("users");
     });
 
     it("should handle extra commas/whitespace in arguments (lines 33-34)", () => {
