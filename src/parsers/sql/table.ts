@@ -25,15 +25,27 @@ function splitByComma(str: string): string[] {
 
     for (let i = 0; i < str.length; i++) {
         const char = str[i];
-        const prevChar = i > 0 ? str[i - 1] : "";
 
-        if ((char === '"' || char === "'") && prevChar !== "\\") {
-            if (!inString) {
-                inString = true;
-                stringChar = char;
-            } else if (char === stringChar) {
-                inString = false;
-                stringChar = null;
+        if (char === '"' || char === "'") {
+            // Count consecutive backslashes before this quote
+            let backslashCount = 0;
+            let checkIndex = i - 1;
+            while (checkIndex >= 0 && str[checkIndex] === "\\") {
+                backslashCount++;
+                checkIndex--;
+            }
+
+            // Quote is escaped only if there's an odd number of backslashes
+            const isEscaped = backslashCount % 2 === 1;
+
+            if (!isEscaped) {
+                if (!inString) {
+                    inString = true;
+                    stringChar = char;
+                } else if (char === stringChar) {
+                    inString = false;
+                    stringChar = null;
+                }
             }
         }
 
@@ -90,7 +102,7 @@ export function parseColumnDefinition(
         /^(?:["']([^"']+)["']\.)?["']([^"']+)["']/
     );
     if (quotedTypeMatch) {
-        colType = quotedTypeMatch[2] || quotedTypeMatch[1];
+        colType = quotedTypeMatch[2];
         remainingConstraints = rest.substring(quotedTypeMatch[0].length).trim();
     } else {
         const multiWordTypes = [
@@ -228,15 +240,27 @@ export function parseTableDefinition(
 
     while (endIndex < sqlContent.length && parenDepth > 0) {
         const char = sqlContent[endIndex];
-        const prevChar = endIndex > 0 ? sqlContent[endIndex - 1] : "";
 
-        if ((char === '"' || char === "'") && prevChar !== "\\") {
-            if (!inString) {
-                inString = true;
-                stringChar = char;
-            } else if (char === stringChar) {
-                inString = false;
-                stringChar = null;
+        if (char === '"' || char === "'") {
+            // Count consecutive backslashes before this quote
+            let backslashCount = 0;
+            let checkIndex = endIndex - 1;
+            while (checkIndex >= 0 && sqlContent[checkIndex] === "\\") {
+                backslashCount++;
+                checkIndex--;
+            }
+
+            // Quote is escaped only if there's an odd number of backslashes
+            const isEscaped = backslashCount % 2 === 1;
+
+            if (!isEscaped) {
+                if (!inString) {
+                    inString = true;
+                    stringChar = char;
+                } else if (char === stringChar) {
+                    inString = false;
+                    stringChar = null;
+                }
             }
         }
 
