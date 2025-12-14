@@ -1,4 +1,3 @@
-@"
 # Dependencies
 node_modules/
 package-lock.json
@@ -8,6 +7,10 @@ pnpm-lock.yaml
 # Build output
 dist/
 *.tsbuildinfo
+
+# Test coverage
+coverage/
+.nyc_output/
 
 # Logs
 *.log
@@ -28,12 +31,7 @@ yarn-error.log*
 *~
 .DS_Store
 
-# Testing
-coverage/
-.nyc_output/
-
 # Temporary files
 *.tmp
 tmp/
 temp/
-"@ | Out-File -FilePath .gitignore -Encoding utf8
