@@ -106,8 +106,8 @@ export function initializeConfig(): GeneratorConfig {
         schemaPaths: resolvedPaths,
         output: {
             dir: cliArgs.outputDir,
-            tempFile: `database${outputSuffix}-temp.js`,
-            finalFile: `database${outputSuffix}.js`,
+            tempFile: `database${outputSuffix}-temp.ts`,
+            finalFile: `database${outputSuffix}.ts`,
         },
         extractNestedTypes: cliArgs.extractNestedTypes,
         deduplicateTypes: cliArgs.deduplicateTypes,
