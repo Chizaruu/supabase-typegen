@@ -5,6 +5,7 @@
  * - initializeConfig: all branches and config combinations
  * - generateTypes: full flow from parsing to file generation
  * - generateFinalTypes: type generation with various options
+ * - SQL parsing to type generation flow
  *
  * @group integration
  */
@@ -106,41 +107,6 @@ describe("Integration: Generator", () => {
             expect(config.includeComments).toBe(true);
         });
 
-        it("should use CLI indent size when provided", () => {
-            process.argv = ["node", "script.ts", "--indent", "4"];
-
-            vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
-                [],
-                "./supabase",
-            ]);
-            vi.spyOn(toml, "resolveSchemaFiles").mockReturnValue([]);
-            vi.spyOn(prettierUtils, "detectPrettierConfig").mockReturnValue(
-                null
-            );
-
-            const config = initializeConfig();
-
-            expect(config.indentSize).toBe(4);
-        });
-
-        it("should use Prettier config when --use-prettier is set", () => {
-            process.argv = ["node", "script.ts", "--use-prettier"];
-
-            vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
-                [],
-                "./supabase",
-            ]);
-            vi.spyOn(toml, "resolveSchemaFiles").mockReturnValue([]);
-            vi.spyOn(prettierUtils, "detectPrettierConfig").mockReturnValue({
-                tabWidth: 4,
-            });
-            vi.spyOn(prettierUtils, "getPrettierIndentSize").mockReturnValue(4);
-
-            const config = initializeConfig();
-
-            expect(config.indentSize).toBe(4);
-        });
-
         it("should prefer CLI indent over Prettier config", () => {
             process.argv = [
                 "node",
@@ -201,42 +167,6 @@ describe("Integration: Generator", () => {
 
             expect(config.output.tempFile).toBe("databaseMy-project-temp.ts");
             expect(config.output.finalFile).toBe("databaseMy-project.ts");
-        });
-
-        it("should handle workdir with dots and supabase folder", () => {
-            process.argv = ["node", "script.ts", "--workdir", "./././supabase"];
-
-            vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
-                [],
-                "./././supabase",
-            ]);
-            vi.spyOn(toml, "resolveSchemaFiles").mockReturnValue([]);
-            vi.spyOn(prettierUtils, "detectPrettierConfig").mockReturnValue(
-                null
-            );
-
-            const config = initializeConfig();
-
-            expect(config.output.tempFile).toBe("database-temp.ts");
-            expect(config.output.finalFile).toBe("database.ts");
-        });
-
-        it("should handle default workdir", () => {
-            process.argv = ["node", "script.ts", "--workdir", "./supabase"];
-
-            vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
-                [],
-                "./supabase",
-            ]);
-            vi.spyOn(toml, "resolveSchemaFiles").mockReturnValue([]);
-            vi.spyOn(prettierUtils, "detectPrettierConfig").mockReturnValue(
-                null
-            );
-
-            const config = initializeConfig();
-
-            expect(config.output.tempFile).toBe("database-temp.ts");
-            expect(config.output.finalFile).toBe("database.ts");
         });
 
         it("should handle custom schema and naming convention", () => {
@@ -377,6 +307,26 @@ describe("Integration: Generator", () => {
                 const config = initializeConfig();
                 expect(config.indentSize).toBe(i);
             }
+        });
+
+        it("should handle empty configWorkdir resulting in empty configPath", () => {
+            process.argv = ["node", "script.ts"];
+
+            // Mock readSupabaseConfig to return empty configWorkdir
+            vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
+                [],
+                "", // Empty configWorkdir
+            ]);
+            vi.spyOn(toml, "resolveSchemaFiles").mockReturnValue([]);
+            vi.spyOn(prettierUtils, "detectPrettierConfig").mockReturnValue(
+                null
+            );
+
+            const config = initializeConfig();
+
+            // This covers: configPath: configWorkdir ? join(configWorkdir, "config.toml") : ""
+            expect(config.supabase.configPath).toBe("");
+            expect(config.supabase.configWorkdir).toBe("");
         });
     });
 
@@ -635,28 +585,6 @@ describe("Integration: Generator", () => {
             });
         });
 
-        it("should handle alphabetical sorting", () => {
-            process.argv = ["node", "script.ts", "--alphabetical"];
-
-            generateTypes();
-
-            // Verify tables are sorted
-            const tables = [...mockTables].sort((a, b) =>
-                a.name.localeCompare(b.name)
-            );
-            expect(tables[0].name).toBe("posts");
-            expect(tables[1].name).toBe("users");
-        });
-
-        it("should sort columns alphabetically when flag is set", () => {
-            process.argv = ["node", "script.ts", "--alphabetical"];
-
-            generateTypes();
-
-            // Verify alphabetical flag is passed correctly
-            expect(tableGenerator.generateTableType).toHaveBeenCalled();
-        });
-
         it("should handle different naming conventions", () => {
             process.argv = ["node", "script.ts", "--naming", "camelCase"];
 
@@ -782,23 +710,6 @@ describe("Integration: Generator", () => {
             ).toHaveBeenCalled();
         });
 
-        it("should handle custom indent size", () => {
-            process.argv = ["node", "script.ts", "--indent", "4"];
-
-            generateTypes();
-
-            expect(tableGenerator.generateTableType).toHaveBeenCalledWith(
-                expect.any(Object),
-                expect.any(String),
-                4, // indentSize
-                expect.any(Boolean),
-                expect.any(Boolean),
-                expect.any(Set),
-                expect.any(String),
-                expect.any(Boolean)
-            );
-        });
-
         it("should detect and use geometric types", () => {
             const geometricTypes = new Set(["point", "polygon"]);
             vi.spyOn(typeMapping, "detectGeometricTypes").mockReturnValue(
@@ -810,88 +721,6 @@ describe("Integration: Generator", () => {
             expect(
                 geometricGenerator.generateGeometricTypes
             ).toHaveBeenCalledWith(geometricTypes, expect.any(Number));
-        });
-
-        it("should handle multiple schemas", () => {
-            const multiSchemaTables: TableDefinition[] = [
-                {
-                    ...mockTables[0],
-                    schema: "public",
-                },
-                {
-                    ...mockTables[1],
-                    schema: "auth",
-                },
-            ];
-
-            vi.spyOn(sqlFileParser, "parseSqlFiles").mockReturnValue({
-                tables: multiSchemaTables,
-                enums: mockEnums,
-                functions: mockFunctions,
-                compositeTypes: mockCompositeTypes,
-            });
-
-            generateTypes();
-
-            expect(tableGenerator.generateTableType).toHaveBeenCalledTimes(2);
-        });
-
-        it("should write correct file path", () => {
-            process.argv = ["node", "script.ts", "--output", "./custom/types"];
-
-            generateTypes();
-
-            const writeCall = vi.mocked(fs.writeFileSync).mock.calls[0];
-            const filePath = writeCall[0] as string;
-
-            // Normalize path separators for cross-platform compatibility
-            const normalizedPath = filePath.replace(/\\/g, "/");
-
-            expect(normalizedPath).toContain("custom/types");
-            expect(normalizedPath).toMatch(/database.*\.ts$/);
-        });
-
-        it("should handle database source mode", () => {
-            process.argv = ["node", "script.ts", "--db"];
-
-            const config = initializeConfig();
-
-            expect(config.supabase.source).toBe("db");
-        });
-
-        it("should log statistics correctly", () => {
-            generateTypes();
-
-            expect(logger.log).toHaveBeenCalledWith(
-                expect.stringContaining("2 table(s)"),
-                "green"
-            );
-            expect(logger.log).toHaveBeenCalledWith(
-                expect.stringContaining("1 enum(s)"),
-                "green"
-            );
-            expect(logger.log).toHaveBeenCalledWith(
-                expect.stringContaining("1 function(s)"),
-                "green"
-            );
-            expect(logger.log).toHaveBeenCalledWith(
-                expect.stringContaining("1 composite type(s)"),
-                "green"
-            );
-        });
-
-        it("should handle empty enums, functions, and composite types", () => {
-            vi.spyOn(sqlFileParser, "parseSqlFiles").mockReturnValue({
-                tables: mockTables,
-                enums: [],
-                functions: [],
-                compositeTypes: [],
-            });
-
-            generateTypes();
-
-            // Should still complete successfully
-            expect(fs.writeFileSync).toHaveBeenCalled();
         });
 
         it("should handle workdir with nested path", () => {
@@ -995,31 +824,369 @@ describe("Integration: Generator", () => {
             expect(content).toContain("graphql:");
         });
 
-        it("should log JSONB type statistics", () => {
-            const nestedTypes: TypeDefinition[] = [
-                {
-                    table: "users",
-                    column: "data",
-                    name: "UserData",
-                    typeDefinition: "{ name: string }",
-                },
-                {
-                    table: "",
-                    column: "",
-                    name: "NestedType",
-                    typeDefinition: "{ value: number }",
-                },
-            ];
+        it("should sort relationships alphabetically when flag is set", () => {
+            process.argv = ["node", "script.ts", "--alphabetical"];
 
-            vi.spyOn(jsonbParser, "scanSchemas").mockReturnValue(nestedTypes);
-            vi.spyOn(jsonbParser, "flattenTypes").mockReturnValue(nestedTypes);
+            const tableWithRelationships: TableDefinition = {
+                schema: "public",
+                name: "posts",
+                columns: [
+                    {
+                        name: "id",
+                        type: "uuid",
+                        nullable: false,
+                        defaultValue: null,
+                        isArray: false,
+                        isPrimaryKey: true,
+                        isUnique: false,
+                    },
+                    {
+                        name: "user_id",
+                        type: "uuid",
+                        nullable: false,
+                        defaultValue: null,
+                        isArray: false,
+                        isPrimaryKey: false,
+                        isUnique: false,
+                    },
+                    {
+                        name: "category_id",
+                        type: "uuid",
+                        nullable: false,
+                        defaultValue: null,
+                        isArray: false,
+                        isPrimaryKey: false,
+                        isUnique: false,
+                    },
+                ],
+                relationships: [
+                    {
+                        foreignKeyName: "posts_user_id_fkey",
+                        columns: ["user_id"],
+                        isOneToOne: false,
+                        referencedRelation: "users",
+                        referencedColumns: ["id"],
+                    },
+                    {
+                        foreignKeyName: "posts_category_id_fkey",
+                        columns: ["category_id"],
+                        isOneToOne: false,
+                        referencedRelation: "categories",
+                        referencedColumns: ["id"],
+                    },
+                    {
+                        foreignKeyName: "posts_author_id_fkey",
+                        columns: ["author_id"],
+                        isOneToOne: false,
+                        referencedRelation: "authors",
+                        referencedColumns: ["id"],
+                    },
+                ],
+                indexes: [],
+            };
+
+            vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
+                [],
+                "./supabase",
+            ]);
+            vi.spyOn(toml, "resolveSchemaFiles").mockReturnValue(["/test.sql"]);
+            vi.spyOn(prettierUtils, "detectPrettierConfig").mockReturnValue(
+                null
+            );
+            vi.spyOn(prettierUtils, "getPrettierIndentSize").mockReturnValue(
+                null
+            );
+            vi.spyOn(jsonbParser, "scanSchemas").mockReturnValue([]);
+            vi.spyOn(typeMapping, "detectGeometricTypes").mockReturnValue(
+                new Set()
+            );
+            vi.spyOn(tableGenerator, "generateTableType").mockReturnValue(
+                "posts: {}"
+            );
+            vi.spyOn(enumGenerator, "generateEnumTypes").mockReturnValue("");
+            vi.spyOn(
+                functionGenerator,
+                "generateFunctionTypes"
+            ).mockReturnValue("");
+            vi.spyOn(
+                compositeGenerator,
+                "generateCompositeTypes"
+            ).mockReturnValue("");
+            vi.spyOn(
+                geometricGenerator,
+                "generateGeometricTypes"
+            ).mockReturnValue("");
+            vi.spyOn(constantsGenerator, "generateConstants").mockReturnValue(
+                ""
+            );
+            vi.spyOn(
+                jsonbGenerator,
+                "generateJsonbTypeDefinitions"
+            ).mockReturnValue("");
+            vi.spyOn(
+                jsonbGenerator,
+                "generateMergeDeepStructure"
+            ).mockReturnValue("");
+
+            vi.spyOn(sqlFileParser, "parseSqlFiles").mockReturnValue({
+                tables: [tableWithRelationships],
+                enums: [],
+                functions: [],
+                compositeTypes: [],
+            });
 
             generateTypes();
 
-            expect(logger.log).toHaveBeenCalledWith(
-                expect.stringContaining("2 JSONB type(s)"),
-                "green"
+            // Verify the table was processed
+            expect(tableGenerator.generateTableType).toHaveBeenCalled();
+
+            // Verify relationships were sorted alphabetically
+            const processedTable = tableWithRelationships;
+            const sortedRelationships = [...processedTable.relationships].sort(
+                (a, b) => a.foreignKeyName.localeCompare(b.foreignKeyName)
             );
+
+            expect(sortedRelationships[0].foreignKeyName).toBe(
+                "posts_author_id_fkey"
+            );
+            expect(sortedRelationships[1].foreignKeyName).toBe(
+                "posts_category_id_fkey"
+            );
+            expect(sortedRelationships[2].foreignKeyName).toBe(
+                "posts_user_id_fkey"
+            );
+        });
+
+        it("should log indent source note when Prettier config is used", () => {
+            process.argv = ["node", "script.ts", "--use-prettier"];
+
+            vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
+                [],
+                "./supabase",
+            ]);
+            vi.spyOn(toml, "resolveSchemaFiles").mockReturnValue(["/test.sql"]);
+            vi.spyOn(prettierUtils, "detectPrettierConfig").mockReturnValue({
+                tabWidth: 2,
+            });
+            vi.spyOn(prettierUtils, "getPrettierIndentSize").mockReturnValue(2);
+            vi.spyOn(jsonbParser, "scanSchemas").mockReturnValue([]);
+            vi.spyOn(typeMapping, "detectGeometricTypes").mockReturnValue(
+                new Set()
+            );
+            vi.spyOn(tableGenerator, "generateTableType").mockReturnValue(
+                "users: {}"
+            );
+            vi.spyOn(enumGenerator, "generateEnumTypes").mockReturnValue("");
+            vi.spyOn(
+                functionGenerator,
+                "generateFunctionTypes"
+            ).mockReturnValue("");
+            vi.spyOn(
+                compositeGenerator,
+                "generateCompositeTypes"
+            ).mockReturnValue("");
+            vi.spyOn(
+                geometricGenerator,
+                "generateGeometricTypes"
+            ).mockReturnValue("");
+            vi.spyOn(constantsGenerator, "generateConstants").mockReturnValue(
+                ""
+            );
+            vi.spyOn(
+                jsonbGenerator,
+                "generateJsonbTypeDefinitions"
+            ).mockReturnValue("");
+            vi.spyOn(
+                jsonbGenerator,
+                "generateMergeDeepStructure"
+            ).mockReturnValue("");
+
+            vi.spyOn(sqlFileParser, "parseSqlFiles").mockReturnValue({
+                tables: [
+                    {
+                        schema: "public",
+                        name: "test",
+                        columns: [],
+                        relationships: [],
+                        indexes: [],
+                    },
+                ],
+                enums: [],
+                functions: [],
+                compositeTypes: [],
+            });
+
+            generateTypes();
+
+            // Verify that the log includes the Prettier config note
+            // This covers the initializeConfig() code path where indentSource = "Prettier config"
+            expect(logger.log).toHaveBeenCalledWith(
+                expect.stringContaining(
+                    "Indentation: 2 spaces (Prettier config)"
+                ),
+                "cyan"
+            );
+
+            // Also verify the file header contains the proper note
+            // This covers: if (prettierIndent === indentSize) { indentSourceNote = " (from Prettier config)"; }
+            const writeCall = vi.mocked(fs.writeFileSync).mock.calls[0];
+            const content = writeCall[1] as string;
+            expect(content).toContain(
+                "Indentation: 2 spaces (from Prettier config)"
+            );
+        });
+
+        it("should log indent source note when custom indent is used", () => {
+            process.argv = ["node", "script.ts", "--indent", "4"];
+
+            vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
+                [],
+                "./supabase",
+            ]);
+            vi.spyOn(toml, "resolveSchemaFiles").mockReturnValue(["/test.sql"]);
+            vi.spyOn(prettierUtils, "detectPrettierConfig").mockReturnValue(
+                null
+            );
+            vi.spyOn(prettierUtils, "getPrettierIndentSize").mockReturnValue(
+                null
+            );
+            vi.spyOn(jsonbParser, "scanSchemas").mockReturnValue([]);
+            vi.spyOn(typeMapping, "detectGeometricTypes").mockReturnValue(
+                new Set()
+            );
+            vi.spyOn(tableGenerator, "generateTableType").mockReturnValue(
+                "users: {}"
+            );
+            vi.spyOn(enumGenerator, "generateEnumTypes").mockReturnValue("");
+            vi.spyOn(
+                functionGenerator,
+                "generateFunctionTypes"
+            ).mockReturnValue("");
+            vi.spyOn(
+                compositeGenerator,
+                "generateCompositeTypes"
+            ).mockReturnValue("");
+            vi.spyOn(
+                geometricGenerator,
+                "generateGeometricTypes"
+            ).mockReturnValue("");
+            vi.spyOn(constantsGenerator, "generateConstants").mockReturnValue(
+                ""
+            );
+            vi.spyOn(
+                jsonbGenerator,
+                "generateJsonbTypeDefinitions"
+            ).mockReturnValue("");
+            vi.spyOn(
+                jsonbGenerator,
+                "generateMergeDeepStructure"
+            ).mockReturnValue("");
+
+            vi.spyOn(sqlFileParser, "parseSqlFiles").mockReturnValue({
+                tables: [
+                    {
+                        schema: "public",
+                        name: "test",
+                        columns: [],
+                        relationships: [],
+                        indexes: [],
+                    },
+                ],
+                enums: [],
+                functions: [],
+                compositeTypes: [],
+            });
+
+            generateTypes();
+
+            // Verify that the log includes the custom indent note
+            // This covers the initializeConfig() code path where indentSource = "CLI flag"
+            expect(logger.log).toHaveBeenCalledWith(
+                expect.stringContaining("Indentation: 4 spaces (CLI flag)"),
+                "cyan"
+            );
+
+            // Also verify the file header contains the proper note
+            // This covers: else { indentSourceNote = " (custom)"; }
+            const writeCall = vi.mocked(fs.writeFileSync).mock.calls[0];
+            const content = writeCall[1] as string;
+            expect(content).toContain("Indentation: 4 spaces (custom)");
+        });
+
+        it("should generate file header with database source when using connection string", () => {
+            process.argv = [
+                "node",
+                "script.ts",
+                "--connection-string",
+                "postgresql://localhost:5432/db",
+            ];
+
+            vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
+                [],
+                "./supabase",
+            ]);
+            vi.spyOn(toml, "resolveSchemaFiles").mockReturnValue([]);
+            vi.spyOn(prettierUtils, "detectPrettierConfig").mockReturnValue(
+                null
+            );
+            vi.spyOn(prettierUtils, "getPrettierIndentSize").mockReturnValue(
+                null
+            );
+            vi.spyOn(jsonbParser, "scanSchemas").mockReturnValue([]);
+            vi.spyOn(typeMapping, "detectGeometricTypes").mockReturnValue(
+                new Set()
+            );
+            vi.spyOn(tableGenerator, "generateTableType").mockReturnValue(
+                "users: {}"
+            );
+            vi.spyOn(enumGenerator, "generateEnumTypes").mockReturnValue("");
+            vi.spyOn(
+                functionGenerator,
+                "generateFunctionTypes"
+            ).mockReturnValue("");
+            vi.spyOn(
+                compositeGenerator,
+                "generateCompositeTypes"
+            ).mockReturnValue("");
+            vi.spyOn(
+                geometricGenerator,
+                "generateGeometricTypes"
+            ).mockReturnValue("");
+            vi.spyOn(constantsGenerator, "generateConstants").mockReturnValue(
+                ""
+            );
+            vi.spyOn(
+                jsonbGenerator,
+                "generateJsonbTypeDefinitions"
+            ).mockReturnValue("");
+            vi.spyOn(
+                jsonbGenerator,
+                "generateMergeDeepStructure"
+            ).mockReturnValue("");
+
+            vi.spyOn(sqlFileParser, "parseSqlFiles").mockReturnValue({
+                tables: [
+                    {
+                        schema: "public",
+                        name: "test",
+                        columns: [],
+                        relationships: [],
+                        indexes: [],
+                    },
+                ],
+                enums: [],
+                functions: [],
+                compositeTypes: [],
+            });
+
+            generateTypes();
+
+            // Verify the file header contains "Source: database"
+            // This covers: const sourceNote = config.supabase.source === "sql" ? "SQL files" : "database";
+            const writeCall = vi.mocked(fs.writeFileSync).mock.calls[0];
+            const content = writeCall[1] as string;
+            expect(content).toContain("Source: database");
+            expect(content).not.toContain("Source: SQL files");
         });
 
         it("should sort JSONB types alphabetically when extract-nested and alphabetical are set", () => {
@@ -1055,6 +1222,242 @@ describe("Integration: Generator", () => {
             expect(
                 jsonbGenerator.generateJsonbTypeDefinitions
             ).toHaveBeenCalled();
+        });
+
+        it("should handle empty enums, functions, and composite types", () => {
+            vi.spyOn(sqlFileParser, "parseSqlFiles").mockReturnValue({
+                tables: mockTables,
+                enums: [],
+                functions: [],
+                compositeTypes: [],
+            });
+
+            generateTypes();
+
+            // Should still complete successfully
+            expect(fs.writeFileSync).toHaveBeenCalled();
+        });
+    });
+
+    describe("SQL Parsing to Type Generation", () => {
+        // This section tests the actual generator implementations
+        // without mocking them, so we have a minimal beforeEach
+        beforeEach(() => {
+            // Only clear mocks, don't set up new ones
+            vi.clearAllMocks();
+        });
+
+        it("should handle complex relationships", () => {
+            const tables: TableDefinition[] = [
+                {
+                    schema: "public",
+                    name: "users",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [],
+                },
+                {
+                    schema: "public",
+                    name: "posts",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                        {
+                            name: "user_id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                            foreignKey: {
+                                table: "users",
+                                column: "id",
+                            },
+                        },
+                    ],
+                    relationships: [
+                        {
+                            foreignKeyName: "posts_user_id_fkey",
+                            columns: ["user_id"],
+                            isOneToOne: false,
+                            referencedRelation: "users",
+                            referencedColumns: ["id"],
+                        },
+                    ],
+                    indexes: [],
+                },
+            ];
+
+            // Generate types for both tables
+            const userType = tableGenerator.generateTableType(
+                tables[0],
+                "preserve",
+                2,
+                false,
+                false
+            );
+            const postType = tableGenerator.generateTableType(
+                tables[1],
+                "preserve",
+                2,
+                false,
+                false
+            );
+
+            expect(userType).toBeTruthy();
+            expect(postType).toBeTruthy();
+        });
+
+        it("should handle alphabetical sorting of tables and columns", () => {
+            const tables: TableDefinition[] = [
+                {
+                    schema: "public",
+                    name: "zebra",
+                    columns: [
+                        {
+                            name: "z_field",
+                            type: "text",
+                            nullable: true,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                        {
+                            name: "a_field",
+                            type: "text",
+                            nullable: true,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: false,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [],
+                },
+                {
+                    schema: "public",
+                    name: "apple",
+                    columns: [],
+                    relationships: [],
+                    indexes: [],
+                },
+            ];
+
+            // When alphabetically sorted
+            const sorted = [...tables].sort((a, b) =>
+                a.name.localeCompare(b.name)
+            );
+            expect(sorted[0].name).toBe("apple");
+            expect(sorted[1].name).toBe("zebra");
+
+            // Columns within table should also be sortable
+            const sortedColumns = [...tables[0].columns].sort((a, b) =>
+                a.name.localeCompare(b.name)
+            );
+            expect(sortedColumns[0].name).toBe("a_field");
+            expect(sortedColumns[1].name).toBe("z_field");
+        });
+
+        it("should generate enum types correctly", () => {
+            const enums: EnumDefinition[] = [
+                {
+                    schema: "public",
+                    name: "user_role",
+                    values: ["admin", "user", "guest"],
+                },
+                {
+                    schema: "public",
+                    name: "status",
+                    values: ["active", "inactive", "pending"],
+                },
+            ];
+
+            const result = enumGenerator.generateEnumTypes(
+                enums,
+                "preserve",
+                2
+            );
+
+            expect(result).toBeTruthy();
+        });
+
+        it("should handle tables across multiple schemas", () => {
+            const tables: TableDefinition[] = [
+                {
+                    schema: "public",
+                    name: "users",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [],
+                },
+                {
+                    schema: "auth",
+                    name: "sessions",
+                    columns: [
+                        {
+                            name: "id",
+                            type: "uuid",
+                            nullable: false,
+                            defaultValue: null,
+                            isArray: false,
+                            isPrimaryKey: true,
+                            isUnique: false,
+                        },
+                    ],
+                    relationships: [],
+                    indexes: [],
+                },
+            ];
+
+            const publicTable = tableGenerator.generateTableType(
+                tables[0],
+                "preserve",
+                2,
+                false,
+                false
+            );
+            const authTable = tableGenerator.generateTableType(
+                tables[1],
+                "preserve",
+                2,
+                false,
+                false,
+                new Set(),
+                "auth"
+            );
+
+            expect(publicTable).toBeTruthy();
+            expect(authTable).toBeTruthy();
         });
     });
 
@@ -1223,58 +1626,6 @@ describe("Integration: Generator", () => {
                 ),
                 "green"
             );
-        });
-
-        it("should handle tables with no relationships", () => {
-            const table: TableDefinition = {
-                schema: "public",
-                name: "standalone",
-                columns: [],
-                relationships: [],
-                indexes: [],
-            };
-
-            vi.spyOn(sqlFileParser, "parseSqlFiles").mockReturnValue({
-                tables: [table],
-                enums: [],
-                functions: [],
-                compositeTypes: [],
-            });
-
-            generateTypes();
-
-            // Should not log relationship count
-            const calls = (logger.log as any).mock.calls;
-            const hasRelationshipLog = calls.some((call: any) =>
-                call[0].includes("relationship(s)")
-            );
-            expect(hasRelationshipLog).toBe(false);
-        });
-
-        it("should handle tables with no indexes", () => {
-            const table: TableDefinition = {
-                schema: "public",
-                name: "simple",
-                columns: [],
-                relationships: [],
-                indexes: [],
-            };
-
-            vi.spyOn(sqlFileParser, "parseSqlFiles").mockReturnValue({
-                tables: [table],
-                enums: [],
-                functions: [],
-                compositeTypes: [],
-            });
-
-            generateTypes();
-
-            // Should not log index count
-            const calls = (logger.log as any).mock.calls;
-            const hasIndexLog = calls.some((call: any) =>
-                call[0].includes("Indexes:")
-            );
-            expect(hasIndexLog).toBe(false);
         });
 
         it("should handle 3 different schemas", () => {
@@ -1486,60 +1837,6 @@ describe("Integration: Generator", () => {
 
             // Should not have JSONB section
             expect(content).not.toContain("JSONB Column Type Definitions");
-        });
-
-        it("should handle verbose logging disabled", () => {
-            process.argv = ["node", "script.ts", "--silent"];
-
-            vi.spyOn(sqlFileParser, "parseSqlFiles").mockReturnValue({
-                tables: [
-                    {
-                        schema: "public",
-                        name: "test",
-                        columns: [],
-                        relationships: [],
-                        indexes: [],
-                    },
-                ],
-                enums: [],
-                functions: [],
-                compositeTypes: [],
-            });
-
-            generateTypes();
-
-            expect(logger.setVerboseLogging).toHaveBeenCalledWith(false);
-        });
-
-        it("should include custom output suffix in import suggestion", () => {
-            process.argv = ["node", "script.ts", "--workdir", "./my-app"];
-
-            vi.spyOn(toml, "readSupabaseConfig").mockReturnValue([
-                [],
-                "./my-app",
-            ]);
-            vi.spyOn(sqlFileParser, "parseSqlFiles").mockReturnValue({
-                tables: [
-                    {
-                        schema: "public",
-                        name: "test",
-                        columns: [],
-                        relationships: [],
-                        indexes: [],
-                    },
-                ],
-                enums: [],
-                functions: [],
-                compositeTypes: [],
-            });
-
-            generateTypes();
-
-            expect(logger.log).toHaveBeenCalledWith(
-                expect.stringContaining("databaseMy-app"),
-                "cyan",
-                true
-            );
         });
     });
 

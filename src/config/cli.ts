@@ -6,7 +6,7 @@ import type { NamingConvention, SourceType } from "../types/index.ts";
 import { GENERATOR_CONFIG } from "./constants.ts";
 import { log } from "../utils/logger.ts";
 
-export interface CliArgs {
+interface CliArgs {
     useLocal: boolean;
     useWorkdir: boolean;
     workdir: string;
