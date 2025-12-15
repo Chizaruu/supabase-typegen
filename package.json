@@ -1,6 +1,6 @@
 {
     "name": "supabase-typegen",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Complete Supabase Type Generator - Schema-File First with Index Support",
     "keywords": [
         "supabase",
