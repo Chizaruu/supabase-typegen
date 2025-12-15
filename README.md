@@ -520,16 +520,22 @@ FROM orders
 GROUP BY DATE(created_at);
 ```
 
+**Note on Materialized Views:**
+
+-   Materialized views are read-only and do not support INSERT, UPDATE, or DELETE operations
+-   They must be refreshed using `REFRESH MATERIALIZED VIEW`
+-   The generator only produces `Row` and `Relationships` types for materialized views
+
 **Generated Types:**
 
 ```typescript
 Views: {
   order_stats: {
     Row: {
-      order_count: number             // Inferred from COUNT(*)
+      order_count: number             // Inferred from COUNT() (bigint)
       total_revenue: number | null    // Inferred from SUM()
       average_order: number | null    // Inferred from AVG()
-      last_order_date: string | null  // Inferred from MAX() on timestamp
+      last_order_date: string | null  // Inferred from MAX() - unknown, needs context
       order_ids: string[] | null      // Inferred from ARRAY_AGG()
       total_text: string | null       // Inferred from CAST
     }
@@ -538,11 +544,9 @@ Views: {
   daily_sales: {
     Row: {
       sale_date: string | null        // Inferred from DATE()
-      num_orders: number              // Inferred from COUNT(*)
+      num_orders: number              // Inferred from COUNT() (bigint)
       daily_revenue: number | null    // Inferred from SUM()
     }
-    Insert: never                     // Materialized views support INSERT
-    Update: never
     Relationships: []
   }
 }
@@ -552,7 +556,7 @@ Views: {
 
 The generator intelligently infers types from common SQL patterns:
 
--   **Aggregate Functions**: `COUNT()` → `bigint`, `SUM()/AVG()` → `numeric`, `MIN()/MAX()` → same as source column
+-   **Aggregate Functions**: `COUNT()` → `bigint` (maps to TypeScript `number`), `SUM()/AVG()` → `numeric`, `MIN()/MAX()` → `unknown` (type depends on input)
 -   **Array Functions**: `ARRAY_AGG()` → array type, `STRING_AGG()` → `text`
 -   **JSON Functions**: `JSON_AGG()/JSONB_AGG()` → `json`/`jsonb`
 -   **Date/Time Functions**: `NOW()` → `timestamp with time zone`, `CURRENT_DATE` → `date`

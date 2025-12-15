@@ -331,6 +331,8 @@ function extractTableAndAlias(
     clause: string
 ): { tableName: string; alias: string } | null {
     const tokens = clause.trim().split(/\s+/);
+    if (tokens.length === 0) return null;
+
     const tableName = tokens[0];
     let alias = tableName;
 
@@ -381,9 +383,9 @@ function extractTableReferences(
         }
     }
 
-    JOIN_PATTERN.lastIndex = 0;
+    const joinPattern = /join\s+(\w+)(?:\s+as\s+(\w+)|\s+(?!on\b)(\w+))?/gi;
     let joinMatch;
-    while ((joinMatch = JOIN_PATTERN.exec(selectStatement)) !== null) {
+    while ((joinMatch = joinPattern.exec(selectStatement)) !== null) {
         const afterJoin = selectStatement
             .slice(joinMatch.index + 4)
             .match(/^\s+([^\s;]+(\s+as\s+\w+|\s+\w+)?)/i);
