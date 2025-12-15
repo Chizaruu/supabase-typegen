@@ -621,7 +621,7 @@ describe("SQL File Parser", () => {
                 );
                 vi.spyOn(sqlParsers, "parseViewDefinition").mockReturnValue(
                     null
-                ); // ADD THIS LINE
+                );
 
                 let indexCallCount = 0;
                 vi.spyOn(sqlParsers, "parseIndexDefinition").mockImplementation(
@@ -705,7 +705,7 @@ describe("SQL File Parser", () => {
                 );
                 vi.spyOn(sqlParsers, "parseViewDefinition").mockReturnValue(
                     null
-                ); // ADD THIS LINE
+                );
                 vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
                     null
                 );
@@ -733,7 +733,7 @@ describe("SQL File Parser", () => {
                 vi.spyOn(sqlParsers, "parseColumnComment").mockReturnValue(
                     null
                 );
-                vi.spyOn(sqlParsers, "parseViewComment").mockReturnValue(null); // ADD THIS LINE TOO
+                vi.spyOn(sqlParsers, "parseViewComment").mockReturnValue(null);
 
                 const result = parseSqlFiles(
                     ["/path/to/schema.sql"],
@@ -797,7 +797,7 @@ describe("SQL File Parser", () => {
                 );
                 vi.spyOn(sqlParsers, "parseViewDefinition").mockReturnValue(
                     null
-                ); // ADD THIS LINE
+                );
                 vi.spyOn(sqlParsers, "parseIndexDefinition").mockReturnValue(
                     null
                 );
@@ -824,7 +824,7 @@ describe("SQL File Parser", () => {
                     }
                 );
 
-                vi.spyOn(sqlParsers, "parseViewComment").mockReturnValue(null); // ADD THIS LINE TOO
+                vi.spyOn(sqlParsers, "parseViewComment").mockReturnValue(null);
 
                 const result = parseSqlFiles(
                     ["/path/to/schema.sql"],
