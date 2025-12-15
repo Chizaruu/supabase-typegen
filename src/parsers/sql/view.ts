@@ -10,6 +10,18 @@ import type {
 
 /**
  * Infer PostgreSQL type from SQL expression
+ *
+ * Supported expressions:
+ * - Aggregate functions: COUNT, SUM, AVG, MIN, MAX
+ * - Array functions: ARRAY_AGG
+ * - String functions: STRING_AGG
+ * - Boolean functions: BOOL_AND, BOOL_OR
+ * - JSON functions: JSON_AGG, JSONB_AGG, JSON_OBJECT_AGG, JSONB_OBJECT_AGG
+ * - Date/time functions: NOW, CURRENT_TIMESTAMP, CURRENT_DATE, CURRENT_TIME
+ * - Literals: numbers, strings, booleans
+ * - CASE expressions
+ *
+ * Returns 'unknown' for unsupported or complex expressions.
  */
 function inferTypeFromExpression(expr: string): {
     type: string;
@@ -103,7 +115,7 @@ function parseColumnExpression(
     expr = expr.trim();
 
     let columnName = "";
-    let columnType = "unknown";
+    let columnType: string;
     let isArray = false;
     let nullable = true;
 
@@ -274,11 +286,11 @@ function parseColumnExpression(
     }
 
     const inferred = inferTypeFromExpression(expr);
-    columnName =
-        expr
-            .replace(/^.*\./, "")
-            .replace(/\(.*\)/, "")
-            .trim() || "column";
+    const baseName = expr
+        .replace(/^.*\./, "")
+        .replace(/\(.*\)/, "")
+        .trim();
+    columnName = baseName || "column";
 
     return {
         name: columnName,
@@ -291,6 +303,52 @@ function parseColumnExpression(
     };
 }
 
+const SQL_KEYWORDS = new Set([
+    "where",
+    "join",
+    "group",
+    "order",
+    "limit",
+    "having",
+    "union",
+    "intersect",
+    "except",
+    "inner",
+    "left",
+    "right",
+    "outer",
+    "cross",
+    "natural",
+    "on",
+    "as",
+]);
+
+const JOIN_PATTERN = /join\s+(\w+)(?:\s+as\s+(\w+)|\s+(?!on\b)(\w+))?/gi;
+
+/**
+ * Extract table and alias from a FROM/JOIN clause
+ */
+function extractTableAndAlias(
+    clause: string
+): { tableName: string; alias: string } | null {
+    const tokens = clause.trim().split(/\s+/);
+    const tableName = tokens[0];
+    let alias = tableName;
+
+    if (tokens.length >= 3 && tokens[1].toLowerCase() === "as") {
+        if (tokens[2] && !SQL_KEYWORDS.has(tokens[2].toLowerCase())) {
+            alias = tokens[2];
+        }
+    } else if (
+        tokens.length >= 2 &&
+        !SQL_KEYWORDS.has(tokens[1].toLowerCase())
+    ) {
+        alias = tokens[1];
+    }
+
+    return { tableName, alias };
+}
+
 /**
  * Extract table references from FROM and JOIN clauses
  */
@@ -301,36 +359,49 @@ function extractTableReferences(
 ): Map<string, TableDefinition> {
     const tables = new Map<string, TableDefinition>();
 
-    const fromMatch = selectStatement.match(
-        /from\s+(\w+)(?:\s+as\s+(\w+)|\s+(?!(where|join|group|order|limit|having|union|intersect|except|inner|left|right|outer|cross|natural)\b)(\w+))?/i
-    );
-
+    const fromMatch = selectStatement.match(/from\s+([^\s;]+)/i);
     if (fromMatch) {
-        const tableName = fromMatch[1];
-        const alias = fromMatch[2] || fromMatch[4] || tableName;
-        const table = allTables.find(
-            (t) => t.name === tableName && t.schema === defaultSchema
-        );
-        if (table) {
-            tables.set(alias, table);
-            if (alias !== tableName) {
-                tables.set(tableName, table);
+        const fromClause = selectStatement
+            .slice(fromMatch.index! + 4)
+            .match(/^\s+([^\s;]+(\s+as\s+\w+|\s+\w+)?)/i);
+
+        if (fromClause) {
+            const tableAlias = extractTableAndAlias(fromClause[0]);
+            if (tableAlias) {
+                const { tableName, alias } = tableAlias;
+                const table = allTables.find(
+                    (t) => t.name === tableName && t.schema === defaultSchema
+                );
+                if (table) {
+                    tables.set(alias, table);
+                    if (alias !== tableName) {
+                        tables.set(tableName, table);
+                    }
+                }
             }
         }
     }
 
-    const joinPattern = /join\s+(\w+)(?:\s+as\s+(\w+)|\s+(?!on\b)(\w+))?/gi;
+    JOIN_PATTERN.lastIndex = 0;
     let joinMatch;
-    while ((joinMatch = joinPattern.exec(selectStatement)) !== null) {
-        const tableName = joinMatch[1];
-        const alias = joinMatch[2] || joinMatch[3] || tableName;
-        const table = allTables.find(
-            (t) => t.name === tableName && t.schema === defaultSchema
-        );
-        if (table) {
-            tables.set(alias, table);
-            if (alias !== tableName) {
-                tables.set(tableName, table);
+    while ((joinMatch = JOIN_PATTERN.exec(selectStatement)) !== null) {
+        const afterJoin = selectStatement
+            .slice(joinMatch.index + 4)
+            .match(/^\s+([^\s;]+(\s+as\s+\w+|\s+\w+)?)/i);
+
+        if (afterJoin) {
+            const tableAlias = extractTableAndAlias(afterJoin[0]);
+            if (tableAlias) {
+                const { tableName, alias } = tableAlias;
+                const table = allTables.find(
+                    (t) => t.name === tableName && t.schema === defaultSchema
+                );
+                if (table) {
+                    tables.set(alias, table);
+                    if (alias !== tableName) {
+                        tables.set(tableName, table);
+                    }
+                }
             }
         }
     }
@@ -343,47 +414,75 @@ function extractTableReferences(
  */
 function parseSelectColumns(
     selectStatement: string,
-    tables: Map<string, TableDefinition>
+    tables: Map<string, TableDefinition>,
+    defaultSchema: string
 ): ColumnDefinition[] {
-    const selectMatch = selectStatement.match(/select\s+([\s\S]+?)\s+from/i);
-    if (!selectMatch) {
-        return [];
-    }
+    let selectMatch = selectStatement.match(/select\s+([\s\S]+?)\s+from/i);
+    let columnList: string;
 
-    let columnList = selectMatch[1].trim();
+    if (selectMatch) {
+        columnList = selectMatch[1].trim();
+    } else {
+        selectMatch = selectStatement.match(
+            /select\s+([\s\S]+?)(?:\s+where|\s+group\s+by|\s+order\s+by|;|$)/i
+        );
+        if (!selectMatch) {
+            return [];
+        }
+        columnList = selectMatch[1].trim();
+    }
 
     if (columnList === "*") {
         const allColumns: ColumnDefinition[] = [];
+        const seen = new Set<string>();
+
         for (const table of tables.values()) {
-            allColumns.push(
-                ...table.columns.map((col) => ({
-                    name: col.name,
-                    type: col.type,
-                    nullable: col.nullable,
-                    defaultValue: null,
-                    isArray: col.isArray,
-                    isPrimaryKey: false,
-                    isUnique: false,
-                }))
-            );
+            for (const col of table.columns) {
+                if (!seen.has(col.name)) {
+                    seen.add(col.name);
+                    allColumns.push({
+                        name: col.name,
+                        type: col.type,
+                        nullable: col.nullable,
+                        defaultValue: null,
+                        isArray: col.isArray,
+                        isPrimaryKey: false,
+                        isUnique: false,
+                    });
+                }
+            }
         }
         return allColumns;
     }
 
     const columnExpressions: string[] = [];
     let depth = 0;
+    let inString = false;
+    let stringChar = "";
     let currentExpr = "";
 
     for (let i = 0; i < columnList.length; i++) {
         const char = columnList[i];
 
-        if (char === "(") {
+        if (
+            (char === "'" || char === '"') &&
+            (i === 0 || columnList[i - 1] !== "\\")
+        ) {
+            if (!inString) {
+                inString = true;
+                stringChar = char;
+            } else if (char === stringChar) {
+                inString = false;
+                stringChar = "";
+            }
+            currentExpr += char;
+        } else if (char === "(" && !inString) {
             depth++;
             currentExpr += char;
-        } else if (char === ")") {
+        } else if (char === ")" && !inString) {
             depth--;
             currentExpr += char;
-        } else if (char === "," && depth === 0) {
+        } else if (char === "," && depth === 0 && !inString) {
             columnExpressions.push(currentExpr.trim());
             currentExpr = "";
         } else {
@@ -397,7 +496,7 @@ function parseSelectColumns(
 
     const columns: ColumnDefinition[] = [];
     for (const expr of columnExpressions) {
-        const col = parseColumnExpression(expr, tables, "public");
+        const col = parseColumnExpression(expr, tables, defaultSchema);
         if (col) {
             columns.push(col);
         }
@@ -415,7 +514,7 @@ export function parseViewDefinition(
     allTables: TableDefinition[] = []
 ): ViewDefinition | null {
     const viewMatch = sqlContent.match(
-        /create\s+(materialized\s+)?view\s+(?:if\s+not\s+exists\s+)?(?:(?:"([^"]+)"|'([^']+)'|(\w+))\.)?(?:"([^"]+)"|'([^']+)'|(\w+))\s+as\s+([\s\S]+?)(?:;|$)/i
+        /create\s+(materialized\s+)?view\s+(?:if\s+not\s+exists\s+)?(?:(?:"([^"]+)"|'([^']+)'|(\w+))\.)?(?:"([^"]+)"|'([^']+)'|(\w+))\s+as\s+([\s\S]+?)(?=\s+with\s+(?:no\s+)?data|;|$)/i
     );
 
     if (!viewMatch) {
@@ -428,7 +527,7 @@ export function parseViewDefinition(
     const definition = viewMatch[8].trim();
 
     const tables = extractTableReferences(definition, allTables, viewSchema);
-    const columns = parseSelectColumns(definition, tables);
+    const columns = parseSelectColumns(definition, tables, viewSchema);
 
     return {
         schema: viewSchema,

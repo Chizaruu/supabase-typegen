@@ -750,11 +750,15 @@ describe("View Parser", () => {
 
             it("should parse SELECT with no FROM clause", () => {
                 const sql = `CREATE VIEW no_from AS
-                    SELECT 1 AS one, 'test' AS text_val;`;
+        SELECT 1 AS one, 'test' AS text_val;`;
                 const result = parseViewDefinition(sql, "public", sampleTables);
 
                 expect(result).not.toBeNull();
-                expect(result?.columns).toHaveLength(0);
+                expect(result?.columns).toHaveLength(2);
+                expect(result?.columns[0].name).toBe("one");
+                expect(result?.columns[0].type).toBe("integer");
+                expect(result?.columns[1].name).toBe("text_val");
+                expect(result?.columns[1].type).toBe("text");
             });
 
             it("should handle column expressions without table context", () => {
@@ -808,6 +812,16 @@ describe("View Parser", () => {
                 expect(result).not.toBeNull();
                 expect(result?.columns).toHaveLength(1);
                 expect(result?.columns[0].name).toBe("column");
+            });
+
+            it("should return empty columns array for malformed SELECT statement", () => {
+                const sql = `CREATE VIEW malformed AS not_a_select_statement;`;
+                const result = parseViewDefinition(sql, "public", sampleTables);
+
+                expect(result).not.toBeNull();
+                expect(result?.name).toBe("malformed");
+                expect(result?.columns).toHaveLength(0);
+                expect(result?.definition).toBe("not_a_select_statement");
             });
         });
 
