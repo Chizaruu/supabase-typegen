@@ -9,6 +9,7 @@ import type {
     FunctionDefinition,
     CompositeTypeDefinition,
     IndexDefinition,
+    ViewDefinition,
 } from "../types/index.js";
 import { log } from "../utils/logger.js";
 import {
@@ -21,6 +22,8 @@ import {
     parseColumnComment,
     parseAlterTableForeignKey,
     parseAlterTableUnique,
+    parseViewDefinition,
+    parseViewComment,
 } from "./sql-parsers.js";
 
 export function parseSqlFiles(
@@ -32,6 +35,7 @@ export function parseSqlFiles(
     enums: EnumDefinition[];
     functions: FunctionDefinition[];
     compositeTypes: CompositeTypeDefinition[];
+    views: ViewDefinition[];
 } {
     log("\n📊 Step 1: Parsing SQL schema files...", "bright");
 
@@ -39,6 +43,7 @@ export function parseSqlFiles(
     const enums: EnumDefinition[] = [];
     const functions: FunctionDefinition[] = [];
     const compositeTypes: CompositeTypeDefinition[] = [];
+    const views: ViewDefinition[] = [];
     const indexesByTable: Map<string, IndexDefinition[]> = new Map();
     const alterTableForeignKeys: Array<{
         tableName: string;
@@ -62,9 +67,14 @@ export function parseSqlFiles(
             const columnComments = includeComments
                 ? new Map<string, Map<string, string>>()
                 : null;
+            const viewComments = includeComments
+                ? new Map<string, string>()
+                : null;
 
             // Track tables added in this file for comment attachment
             const tablesAddedInThisFile: TableDefinition[] = [];
+            const viewsAddedInThisFile: ViewDefinition[] = [];
+            const viewStatements: string[] = [];
 
             for (const statement of statements) {
                 const trimmed = statement.trim();
@@ -92,6 +102,15 @@ export function parseSqlFiles(
                 const compositeDef = parseCompositeType(trimmed, schema);
                 if (compositeDef) {
                     compositeTypes.push(compositeDef);
+                    continue;
+                }
+
+                if (
+                    trimmed
+                        .toLowerCase()
+                        .match(/^create\s+(materialized\s+)?view/)
+                ) {
+                    viewStatements.push(trimmed);
                     continue;
                 }
 
@@ -142,10 +161,31 @@ export function parseSqlFiles(
                             );
                         continue;
                     }
+
+                    const viewComment = parseViewComment(trimmed, schema);
+                    if (viewComment) {
+                        viewComments!.set(
+                            viewComment.viewName,
+                            viewComment.comment
+                        );
+                        continue;
+                    }
                 }
             }
 
             // Attach comments to tables added in THIS file only
+            for (const viewStatement of viewStatements) {
+                const viewDef = parseViewDefinition(
+                    viewStatement,
+                    schema,
+                    tables
+                );
+                if (viewDef) {
+                    views.push(viewDef);
+                    viewsAddedInThisFile.push(viewDef);
+                }
+            }
+
             if (includeComments && tableComments && columnComments) {
                 for (const table of tablesAddedInThisFile) {
                     const tableComment = tableComments.get(table.name);
@@ -161,6 +201,15 @@ export function parseSqlFiles(
                                 column.comment = comment;
                             }
                         }
+                    }
+                }
+            }
+
+            if (includeComments && viewComments) {
+                for (const view of viewsAddedInThisFile) {
+                    const viewComment = viewComments.get(view.name);
+                    if (viewComment) {
+                        view.comment = viewComment;
                     }
                 }
             }
@@ -225,6 +274,7 @@ export function parseSqlFiles(
         log(`  ✓ Parsed ${functions.length} function(s)`, "green");
     if (compositeTypes.length > 0)
         log(`  ✓ Parsed ${compositeTypes.length} composite type(s)`, "green");
+    if (views.length > 0) log(`  ✓ Parsed ${views.length} view(s)`, "green");
 
-    return { tables, enums, functions, compositeTypes };
+    return { tables, enums, functions, compositeTypes, views };
 }

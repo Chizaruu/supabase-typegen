@@ -14,7 +14,7 @@ node_modules/
 .DS_Store
 
 # Tests
-*.test.js
+*.test.ts
 *.spec.js
 __tests__/
 coverage/

@@ -61,6 +61,15 @@ export interface RelationshipDefinition {
     referencedColumns: string[];
 }
 
+export interface ViewDefinition {
+    schema: string;
+    name: string;
+    columns: ColumnDefinition[];
+    isMaterialized: boolean;
+    definition?: string;
+    comment?: string;
+}
+
 export interface EnumDefinition {
     schema: string;
     name: string;

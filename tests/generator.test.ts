@@ -34,6 +34,7 @@ import type {
     FunctionDefinition,
     CompositeTypeDefinition,
     TypeDefinition,
+    ViewDefinition,
 } from "../src/types/index.js";
 
 // Mock fs module at the top level
@@ -165,8 +166,8 @@ describe("Integration: Generator", () => {
 
             const config = initializeConfig();
 
-            expect(config.output.tempFile).toBe("databaseMy-project-temp.js");
-            expect(config.output.finalFile).toBe("databaseMy-project.js");
+            expect(config.output.tempFile).toBe("databaseMy-project-temp.ts");
+            expect(config.output.finalFile).toBe("databaseMy-project.ts");
         });
 
         it("should handle custom schema and naming convention", () => {
@@ -460,6 +461,37 @@ describe("Integration: Generator", () => {
             },
         ];
 
+        const mockViewsTypes: ViewDefinition[] = [
+            {
+                schema: "public",
+                name: "user_post_summary",
+                columns: [
+                    {
+                        name: "user_id",
+                        type: "uuid",
+                        nullable: false,
+                        defaultValue: null,
+                        isArray: false,
+                        isPrimaryKey: false,
+                        isUnique: false,
+                    },
+                    {
+                        name: "post_count",
+                        type: "integer",
+                        nullable: false,
+                        defaultValue: null,
+                        isArray: false,
+                        isPrimaryKey: false,
+                        isUnique: false,
+                    },
+                ],
+                isMaterialized: false,
+                definition:
+                    "SELECT user_id, COUNT(*) AS post_count FROM posts GROUP BY user_id",
+                comment: "Summary of post counts per user",
+            },
+        ];
+
         const mockJsonbTypes: TypeDefinition[] = [
             {
                 table: "users",
@@ -496,6 +528,7 @@ describe("Integration: Generator", () => {
                 enums: mockEnums,
                 functions: mockFunctions,
                 compositeTypes: mockCompositeTypes,
+                views: mockViewsTypes,
             });
 
             // Mock JSONB scanning
@@ -563,6 +596,7 @@ describe("Integration: Generator", () => {
                 enums: [],
                 functions: [],
                 compositeTypes: [],
+                views: [],
             });
 
             generateTypes();
@@ -933,6 +967,7 @@ describe("Integration: Generator", () => {
                 enums: [],
                 functions: [],
                 compositeTypes: [],
+                views: [],
             });
 
             generateTypes();
@@ -1014,6 +1049,7 @@ describe("Integration: Generator", () => {
                 enums: [],
                 functions: [],
                 compositeTypes: [],
+                views: [],
             });
 
             generateTypes();
@@ -1095,6 +1131,7 @@ describe("Integration: Generator", () => {
                 enums: [],
                 functions: [],
                 compositeTypes: [],
+                views: [],
             });
 
             generateTypes();
@@ -1177,6 +1214,7 @@ describe("Integration: Generator", () => {
                 enums: [],
                 functions: [],
                 compositeTypes: [],
+                views: [],
             });
 
             generateTypes();
@@ -1230,6 +1268,7 @@ describe("Integration: Generator", () => {
                 enums: [],
                 functions: [],
                 compositeTypes: [],
+                views: [],
             });
 
             generateTypes();
@@ -1523,6 +1562,7 @@ describe("Integration: Generator", () => {
                 enums: [],
                 functions: [],
                 compositeTypes: [],
+                views: [],
             });
 
             generateTypes();
@@ -1552,6 +1592,7 @@ describe("Integration: Generator", () => {
                 enums: [],
                 functions: [],
                 compositeTypes: [],
+                views: [],
             });
 
             generateTypes();
@@ -1583,6 +1624,7 @@ describe("Integration: Generator", () => {
                 enums: [],
                 functions: [],
                 compositeTypes: [],
+                views: [],
             });
 
             generateTypes();
@@ -1616,6 +1658,7 @@ describe("Integration: Generator", () => {
                 enums: [],
                 functions: [],
                 compositeTypes: [],
+                views: [],
             });
 
             generateTypes();
@@ -1658,6 +1701,7 @@ describe("Integration: Generator", () => {
                 enums: [],
                 functions: [],
                 compositeTypes: [],
+                views: [],
             });
 
             generateTypes();
@@ -1695,6 +1739,7 @@ describe("Integration: Generator", () => {
                 enums,
                 functions: [],
                 compositeTypes: [],
+                views: [],
             });
 
             generateTypes();
@@ -1731,6 +1776,7 @@ describe("Integration: Generator", () => {
                 enums: [],
                 functions,
                 compositeTypes: [],
+                views: [],
             });
 
             generateTypes();
@@ -1765,6 +1811,7 @@ describe("Integration: Generator", () => {
                 enums: [],
                 functions: [],
                 compositeTypes,
+                views: [],
             });
 
             generateTypes();
@@ -1802,6 +1849,7 @@ describe("Integration: Generator", () => {
                 enums: [],
                 functions: [],
                 compositeTypes: [],
+                views: [],
             });
 
             generateTypes();
@@ -1828,6 +1876,7 @@ describe("Integration: Generator", () => {
                 enums: [],
                 functions: [],
                 compositeTypes: [],
+                views: [],
             });
 
             generateTypes();
@@ -1899,6 +1948,7 @@ describe("Integration: Generator", () => {
                 enums: [],
                 functions: [],
                 compositeTypes: [],
+                views: [],
             });
         });
 
