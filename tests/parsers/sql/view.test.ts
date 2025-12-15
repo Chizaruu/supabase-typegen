@@ -934,6 +934,54 @@ describe("View Parser", () => {
                 expect(result).not.toBeNull();
                 expect(result?.columns).toHaveLength(1);
             });
+
+            it("should handle string literals with SQL-style escaped quotes", () => {
+                const sql = `CREATE VIEW escaped_quotes AS
+        SELECT 'O''Reilly' AS company, 'It''s working' AS message, name
+        FROM users;`;
+                const result = parseViewDefinition(sql, "public", sampleTables);
+
+                expect(result).not.toBeNull();
+                expect(result?.columns).toHaveLength(3);
+                expect(result?.columns[0].name).toBe("company");
+                expect(result?.columns[0].type).toBe("text");
+                expect(result?.columns[1].name).toBe("message");
+                expect(result?.columns[1].type).toBe("text");
+                expect(result?.columns[2].name).toBe("name");
+                expect(result?.columns[2].type).toBe("text");
+            });
+
+            it("should handle string literals with commas inside", () => {
+                const sql = `CREATE VIEW comma_strings AS
+        SELECT 'hello, world' AS greeting, 'one, two, three' AS numbers, id
+        FROM users;`;
+                const result = parseViewDefinition(sql, "public", sampleTables);
+
+                expect(result).not.toBeNull();
+                expect(result?.columns).toHaveLength(3);
+                expect(result?.columns[0].name).toBe("greeting");
+                expect(result?.columns[0].type).toBe("text");
+                expect(result?.columns[1].name).toBe("numbers");
+                expect(result?.columns[1].type).toBe("text");
+                expect(result?.columns[2].name).toBe("id");
+                expect(result?.columns[2].type).toBe("integer");
+            });
+
+            it("should handle mixed quotes inside string literals", () => {
+                const sql = `CREATE VIEW mixed_quotes AS
+        SELECT 'She said "hello"' AS greeting, 'It''s working' AS message, id
+        FROM users;`;
+                const result = parseViewDefinition(sql, "public", sampleTables);
+
+                expect(result).not.toBeNull();
+                expect(result?.columns).toHaveLength(3);
+                expect(result?.columns[0].name).toBe("greeting");
+                expect(result?.columns[0].type).toBe("text");
+                expect(result?.columns[1].name).toBe("message");
+                expect(result?.columns[1].type).toBe("text");
+                expect(result?.columns[2].name).toBe("id");
+                expect(result?.columns[2].type).toBe("integer");
+            });
         });
     });
 

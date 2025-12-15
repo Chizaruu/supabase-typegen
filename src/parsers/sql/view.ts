@@ -109,8 +109,7 @@ function inferTypeFromExpression(expr: string): {
  */
 function parseColumnExpression(
     expr: string,
-    tables: Map<string, TableDefinition>,
-    defaultSchema: string
+    tables: Map<string, TableDefinition>
 ): ColumnDefinition | null {
     expr = expr.trim();
 
@@ -464,18 +463,23 @@ function parseSelectColumns(
     for (let i = 0; i < columnList.length; i++) {
         const char = columnList[i];
 
-        if (
-            (char === "'" || char === '"') &&
-            (i === 0 || columnList[i - 1] !== "\\")
-        ) {
+        if (char === "'" || char === '"') {
             if (!inString) {
                 inString = true;
                 stringChar = char;
+                currentExpr += char;
             } else if (char === stringChar) {
-                inString = false;
-                stringChar = "";
+                if (columnList[i + 1] === char) {
+                    currentExpr += char + char;
+                    i++;
+                } else {
+                    inString = false;
+                    stringChar = "";
+                    currentExpr += char;
+                }
+            } else {
+                currentExpr += char;
             }
-            currentExpr += char;
         } else if (char === "(" && !inString) {
             depth++;
             currentExpr += char;
@@ -496,7 +500,7 @@ function parseSelectColumns(
 
     const columns: ColumnDefinition[] = [];
     for (const expr of columnExpressions) {
-        const col = parseColumnExpression(expr, tables, defaultSchema);
+        const col = parseColumnExpression(expr, tables);
         if (col) {
             columns.push(col);
         }
